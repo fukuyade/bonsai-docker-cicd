@@ -19,14 +19,14 @@ Day 8での応募完成を目標に、Day 2以降は「ブランチ作成 → �
 - [x] README仮記載(目的・技術構成・今週のMVP)
 - [x] GitHubリポジトリ作成・push(https://github.com/fukuyade/bonsai-docker-cicd)
 
-## Day 2｜Docker Compose + MySQL
+## Day 2｜Docker Compose + MySQL(完了)
 
 ブランチ: `feature/docker-environment`
 
-- [ ] `app` / `db` の2サービスでDockerfile・compose.yaml作成
-- [ ] MySQL 8、healthcheck、named volume、utf8mb4設定
-- [ ] `.env.example` / `.dockerignore` 整備
-- [ ] README起動・停止手順を追記
+- [x] `app` / `db` の2サービスでDockerfile・compose.yaml作成
+- [x] MySQL 8、healthcheck、named volume、utf8mb4設定
+- [x] `.env.example` / `.dockerignore` 整備
+- [x] README起動・停止手順を追記
 
 push条件: `docker compose up`でapp・dbが起動し、ブラウザでNext.js初期画面が表示される。実値入り`.env`が追跡対象外。
 

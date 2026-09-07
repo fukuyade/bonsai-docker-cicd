@@ -1,0 +1,55 @@
+services:
+  app:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      # appコンテナからは「localhost」ではなくサービス名「db」で接続する。
+      # Docker Composeが作る内部ネットワークではサービス名がそのままホスト名として解決されるため。
+      DATABASE_URL: mysql://${MYSQL_USER}:${MYSQL_PASSWORD}@db:3306/${MYSQL_DATABASE}
+    volumes:
+      # ソースコードをbind mountし、変更を即座に反映(ホットリロード)できるようにする。
+      - .:/app
+      # 上記のbind mountでホスト側のnode_modulesが空でも上書きされないよう、
+      # node_modulesと.nextだけは匿名volumeにしてコンテナ内のものを維持する。
+      - /app/node_modules
+      - /app/.next
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: mysql:8
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+    # 文字コードをutf8mb4に固定(絵文字や外字を含む備考欄などに対応するため)。
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    ports:
+      - "3306:3306"
+    volumes:
+      # named volumeでデータを永続化。`docker compose down` してもデータは消えない
+      # (`docker compose down -v` で明示的に消すまで残る)。
+      - db-data:/var/lib/mysql
+    healthcheck:
+      # dbが実際に接続を受け付けられる状態になってからappを起動するための健全性確認。
+      test:
+        [
+          "CMD",
+          "mysqladmin",
+          "ping",
+          "-h",
+          "localhost",
+          "-u",
+          "root",
+          "-p$$MYSQL_ROOT_PASSWORD",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  db-data:
