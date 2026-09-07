@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { getBonsaiById } from "@/lib/bonsai";
+import { getBonsaiWithMaintenanceRecords } from "@/lib/bonsai";
 import { formatDate } from "@/lib/format";
+import { MAINTENANCE_WORK_TYPE_LABEL } from "@/lib/maintenance-work-type";
 
 import { StatusBadge } from "../_components/StatusBadge";
 
@@ -24,7 +25,7 @@ export default async function BonsaiDetailPage({
     notFound();
   }
 
-  const bonsai = await getBonsaiById(bonsaiId);
+  const bonsai = await getBonsaiWithMaintenanceRecords(bonsaiId);
 
   // 存在しないIDの場合、Next.jsのnotFound()を呼ぶと
   // 同じフォルダ(またはより上位)のnot-found.tsxが表示される(404相当)。
@@ -68,7 +69,48 @@ export default async function BonsaiDetailPage({
         <Row label="備考" value={bonsai.memo ?? "-"} multiline />
       </dl>
 
-      {/* 手入れ履歴の表示・登録はDay6で追加予定 */}
+      <div className="mt-10">
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="text-lg font-bold text-gray-900">手入れ履歴</h2>
+          <Link
+            href={`/bonsai/${bonsai.id}/maintenance/new`}
+            className="rounded-full bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-700"
+          >
+            + 履歴を登録
+          </Link>
+        </div>
+
+        {bonsai.maintenanceRecords.length === 0 ? (
+          <p className="rounded-lg border border-dashed border-gray-300 p-6 text-center text-sm text-gray-500">
+            手入れ履歴はまだ登録されていません。
+          </p>
+        ) : (
+          <ul className="divide-y divide-gray-200 rounded-lg border border-gray-200">
+            {bonsai.maintenanceRecords.map((record) => (
+              <li key={record.id} className="p-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-gray-900">
+                    {formatDate(record.maintenanceDate)}
+                  </span>
+                  <span className="rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-700">
+                    {MAINTENANCE_WORK_TYPE_LABEL[record.workType]}
+                  </span>
+                </div>
+                {record.workerName && (
+                  <p className="mt-1 text-xs text-gray-500">
+                    担当: {record.workerName}
+                  </p>
+                )}
+                {record.memo && (
+                  <p className="mt-1 whitespace-pre-wrap text-sm text-gray-700">
+                    {record.memo}
+                  </p>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
     </main>
   );
 }
