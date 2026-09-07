@@ -32,7 +32,8 @@ Webアプリ化によって解消することを目的とした個人開発プ�
 - [ ] 手入れ履歴の登録・表示
 - [ ] 盆栽と手入れ履歴の1対多リレーション
 - [ ] 入力値検証(Zod)と例外処理
-- [ ] Docker ComposeでのNext.js + MySQL起動、Prisma接続
+- [x] Docker ComposeでのNext.js + MySQL起動
+- [ ] Prisma接続
 - [ ] 初期ダミーデータ投入
 
 P1(削除・検索・テスト・CI等)・P2(認証・画像アップロード・デプロイ等)は今回のMVP範囲外です。詳細は Issue を参照してください。
@@ -43,20 +44,43 @@ P1(削除・検索・テスト・CI等)・P2(認証・画像アップロード�
 src/
   app/        # App Router (ルーティング・ページ)
 public/       # 静的アセット
+Dockerfile    # app(Next.js)コンテナのビルド定義
+compose.yaml  # app・db 2サービスの定義
+.env.example  # 環境変数のキー名と安全なダミー値の例
 ```
 
-Prisma・Docker関連のディレクトリは今後のIssueで追加していきます。
+Prisma関連のディレクトリは今後のIssueで追加していきます。
 
 ## 開発環境の起動手順
 
-Docker Compose対応は今後のIssue(`feature/docker-environment`)で追加予定です。現時点ではローカルNode.js環境での起動のみ対応しています。
+### Docker Compose(推奨)
+
+`app`(Next.js)・`db`(MySQL 8)の2サービスをDocker Composeで起動します。
+
+```bash
+cp .env.example .env   # 値はダミーのままでもローカル動作可
+docker compose up --build
+```
+
+http://localhost:3000 で確認できます。ソースコードはbind mountされているため、
+`src/`配下を編集すると自動でホットリロードされます(コンテナの再ビルド不要)。
+
+```bash
+docker compose down       # 停止(dbのデータは保持される)
+docker compose down -v    # 停止 + dbのデータも削除
+```
+
+`app`コンテナは`db`という**サービス名**をホスト名としてMySQLへ接続します(`localhost`ではありません)。
+Docker Composeが作る内部ネットワークでは、サービス名がそのままDNS解決されるためです。
+
+### ローカルNode.js環境(Dockerを使わない場合)
 
 ```bash
 npm install
 npm run dev
 ```
 
-http://localhost:3000 で確認できます。
+http://localhost:3000 で確認できます。この場合はMySQLへの接続は別途用意する必要があります。
 
 ```bash
 npm run lint   # ESLint
@@ -65,7 +89,7 @@ npm run build  # 本番ビルド
 
 ## 今後の予定
 
-1. Docker Compose環境(Next.js + MySQL)
+1. ~~Docker Compose環境(Next.js + MySQL)~~ ✅ 完了
 2. Prisma導入・スキーマ設計・マイグレーション・seed
 3. 盆栽CRUD実装
 4. 手入れ履歴の登録・表示実装
