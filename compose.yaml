@@ -7,6 +7,9 @@ services:
       # appコンテナからは「localhost」ではなくサービス名「db」で接続する。
       # Docker Composeが作る内部ネットワークではサービス名がそのままホスト名として解決されるため。
       DATABASE_URL: mysql://${MYSQL_USER}:${MYSQL_PASSWORD}@db:3306/${MYSQL_DATABASE}
+      # `docker compose exec app npx prisma migrate dev` を実行する時だけ使う
+      # shadow database用の接続(rootを使う理由は .env.example のコメント参照)。
+      SHADOW_DATABASE_URL: mysql://root:${MYSQL_ROOT_PASSWORD}@db:3306/prisma_shadow
     volumes:
       # ソースコードをbind mountし、変更を即座に反映(ホットリロード)できるようにする。
       - .:/app
@@ -34,6 +37,9 @@ services:
       # named volumeでデータを永続化。`docker compose down` してもデータは消えない
       # (`docker compose down -v` で明示的に消すまで残る)。
       - db-data:/var/lib/mysql
+      # 初回起動時(データ領域が空の場合のみ)に自動実行される初期化SQL。
+      # `prisma migrate dev` が使うshadow database(prisma_shadow)を用意する。
+      - ./docker/mysql/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     healthcheck:
       # dbが実際に接続を受け付けられる状態になってからappを起動するための健全性確認。
       test:

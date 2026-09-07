@@ -30,16 +30,37 @@ Day 8での応募完成を目標に、Day 2以降は「ブランチ作成 → �
 
 push条件: `docker compose up`でapp・dbが起動し、ブラウザでNext.js初期画面が表示される。実値入り`.env`が追跡対象外。
 
-## Day 3｜Prisma・DB設計・seed
+## Day 3｜Prisma・DB設計・seed(完了)
 
 ブランチ: `feature/prisma-schema`
 
-- [ ] Prisma導入・MySQL接続
-- [ ] `Bonsai` / `MaintenanceRecord` スキーマ設計(1対多、`managementNumber`ユニーク制約)
-- [ ] マイグレーション作成
-- [ ] seedスクリプトでダミーデータ投入(架空データのみ)
+- [x] Prisma導入・MySQL接続(Prisma 7、driver adapter方式)
+- [x] `Bonsai` / `MaintenanceRecord` スキーマ設計(1対多、`managementNumber`ユニーク制約、`onDelete: Restrict`)
+- [x] マイグレーション作成(`prisma/migrations/20260907082216_init`)
+- [x] seedスクリプトでダミーデータ投入(架空データのみ、Bonsai5件・MaintenanceRecord3件)
 
-push条件: 空DBからmigration・seedを再現できる。README下書きにER図を追加。
+push条件: 空DBからmigration・seedを再現できる ✅(`docker compose down -v` → `up --build` →
+`migrate dev` → `db:seed` の通しで確認済み)。README下書きにER図を追加 ✅。
+
+### 遭遇した問題と対応(面接説明用メモ)
+
+- **Prisma 7の破壊的変更**: `schema.prisma`内の`datasource.url`が廃止され、接続情報は
+  `prisma.config.ts`(CLI/migrate用)と`PrismaClient`のdriver adapter(アプリ実行時用)に
+  分離する方式になった。公式ドキュメント(pris.ly/d/prisma7-client-config)を確認して対応。
+- **MySQL用の公式driver adapterが存在しない**: `@prisma/adapter-mysql`はnpmに存在せず、
+  ワイヤプロトコル互換の`@prisma/adapter-mariadb`を使うのが公式の案内。
+- **shadow database**: `migrate dev`は検証用DBを作るために「データベース作成権限」を要求する。
+  アプリ用ユーザー(`bonsai_user`)は`bonsai`データベースのみに絞りたかったため、
+  shadow db作成専用にroot接続(`SHADOW_DATABASE_URL`)を分離し、最小権限を維持した。
+- **MySQL 8のcaching_sha2_password**: 既定の認証方式が、非TLS接続だと`mariadb`ドライバの
+  ハンドシェイクをブロックする(接続プールが増えず無限にタイムアウトする)。
+  `allowPublicKeyRetrieval: true`を明示して解決。
+- **npmの新しいinstall-scripts制限**: 新しいnpmは未承認パッケージの`postinstall`を実行しないため、
+  `@prisma/client`インストール時の自動`prisma generate`が働かないことがある。
+  Dockerfileで`RUN npx prisma generate`を明示実行するよう変更。
+- **匿名volumeの取り残し**: `node_modules`を匿名volumeで保護している影響で、依存関係を追加して
+  イメージを再ビルドしても、既存コンテナ起動時に古いvolumeの中身が使われ続けることがあった。
+  `docker compose down && up --build`でコンテナごと作り直すことで解決し、READMEに注記した。
 
 ## Day 4｜盆栽一覧・詳細
 
