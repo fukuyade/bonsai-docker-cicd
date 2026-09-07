@@ -18,7 +18,15 @@ export default async function BonsaiListPage() {
     <main className="mx-auto max-w-4xl px-6 py-10">
       <div className="mb-6 flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-900">盆栽一覧</h1>
-        <span className="text-sm text-gray-500">{bonsaiList.length}件</span>
+        <div className="flex items-center gap-4">
+          <span className="text-sm text-gray-500">{bonsaiList.length}件</span>
+          <Link
+            href="/bonsai/new"
+            className="rounded-full bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-700"
+          >
+            + 新規登録
+          </Link>
+        </div>
       </div>
 
       {bonsaiList.length === 0 ? (
