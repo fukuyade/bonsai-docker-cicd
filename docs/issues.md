@@ -62,16 +62,28 @@ push条件: 空DBからmigration・seedを再現できる ✅(`docker compose do
   イメージを再ビルドしても、既存コンテナ起動時に古いvolumeの中身が使われ続けることがあった。
   `docker compose down && up --build`でコンテナごと作り直すことで解決し、READMEに注記した。
 
-## Day 4｜盆栽一覧・詳細
+## Day 4｜盆栽一覧・詳細(完了)
 
 ブランチ: `feature/bonsai-list-detail`
 
-- [ ] `/bonsai` 一覧取得・表示
-- [ ] `/bonsai/[id]` 詳細取得・表示
-- [ ] ステータスの日本語表示
-- [ ] 空データ・存在しないID(404相当)の表示
+- [x] `/bonsai` 一覧取得・表示
+- [x] `/bonsai/[id]` 詳細取得・表示
+- [x] ステータスの日本語表示(色付きバッジ)
+- [x] 空データ・存在しないID(404相当)の表示
 
-push条件: seedデータを一覧・詳細で確認、存在しないIDの表示を確認、lint・build成功。
+push条件: seedデータを一覧・詳細で確認 ✅、存在しないID(`/bonsai/999`)・非数値ID(`/bonsai/abc`)が
+404を返すことを確認 ✅、lint・build成功 ✅。
+
+### 遭遇した問題と対応(面接説明用メモ)
+
+- **ビルド時にDBへ接続しようとして失敗**: `/bonsai`はDBアクセスを含むが`cookies()`等の
+  動的APIを使っていないため、Next.jsは既定でビルド時の静的プリレンダリングを試みる。
+  ビルド環境(ホスト)からは`db`ホスト名へ到達できず`next build`が失敗した。
+  管理画面は常に最新のDB状態を見せたいという要件とも合致するため、
+  `export const dynamic = "force-dynamic"`を明示して都度サーバーレンダリングにした。
+- **seedを複数回実行するとidがずれる**: `deleteMany()`だけではAUTO_INCREMENTがリセットされず、
+  実行するたびに`id`が6, 7, 8…と増え続けた。「何度実行しても同じ結果になる」という
+  seedスクリプト本来の意図に反するため、`ALTER TABLE ... AUTO_INCREMENT = 1`を追加して解決。
 
 ## Day 5｜盆栽登録・編集・Zod
 

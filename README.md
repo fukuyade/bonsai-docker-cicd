@@ -28,7 +28,7 @@ Webアプリ化によって解消することを目的とした個人開発プ�
 
 ## 機能一覧(今週のMVP: P0)
 
-- [ ] 盆栽情報の一覧・登録・詳細・編集
+- [x] 盆栽情報の一覧・詳細(登録・編集はDay5で実装予定)
 - [ ] 手入れ履歴の登録・表示
 - [x] 盆栽と手入れ履歴の1対多リレーション(DB設計・マイグレーション完了、画面は未実装)
 - [ ] 入力値検証(Zod)と例外処理
@@ -42,8 +42,17 @@ P1(削除・検索・テスト・CI等)・P2(認証・画像アップロード�
 
 ```
 src/
-  app/            # App Router (ルーティング・ページ)
-  lib/prisma.ts   # PrismaClientのシングルトン(driver adapter設定含む)
+  app/
+    bonsai/
+      page.tsx          # 盆栽一覧
+      [id]/page.tsx      # 盆栽詳細(動的ルート)
+      [id]/not-found.tsx # 存在しないIDの404表示
+      _components/       # bonsai配下だけで使うUI部品(ルーティング対象外)
+  lib/
+    prisma.ts        # PrismaClientのシングルトン(driver adapter設定含む)
+    bonsai.ts         # 盆栽のDBアクセス関数(一覧・詳細取得)
+    bonsai-status.ts   # ステータスの日本語ラベル・色の対応表
+    format.ts          # 日付表示などの共通フォーマッタ
 public/           # 静的アセット
 prisma/
   schema.prisma   # DBスキーマ定義
@@ -147,7 +156,7 @@ npm run build  # 本番ビルド
 
 1. ~~Docker Compose環境(Next.js + MySQL)~~ ✅ 完了
 2. ~~Prisma導入・スキーマ設計・マイグレーション・seed~~ ✅ 完了
-3. 盆栽一覧・詳細画面
+3. ~~盆栽一覧・詳細画面~~ ✅ 完了
 4. 盆栽登録・編集画面
 5. 手入れ履歴の登録・表示実装
 6. README・画面画像・工夫した点/苦労した点の追記
