@@ -1,6 +1,24 @@
-import { BonsaiStatus, MaintenanceWorkType } from "@prisma/client";
+import {
+  BonsaiImageAngle,
+  BonsaiStatus,
+  MaintenanceWorkType,
+} from "@prisma/client";
 
 import { prisma } from "../src/lib/prisma";
+
+// 写真は生成AIで作成した架空の画像。実在の盆栽を撮影したものではない。
+// 1鉢につき正面・右・左・背面の4方向を用意している。
+const IMAGE_ANGLES = [
+  { angle: BonsaiImageAngle.FRONT, slug: "front", label: "正面", sortOrder: 1 },
+  { angle: BonsaiImageAngle.RIGHT, slug: "right", label: "右", sortOrder: 2 },
+  { angle: BonsaiImageAngle.LEFT, slug: "left", label: "左", sortOrder: 3 },
+  { angle: BonsaiImageAngle.BACK, slug: "back", label: "背面", sortOrder: 4 },
+] as const;
+
+// 管理番号(No.001)から画像ファイル名の接頭辞(no001)へ変換する。
+function toImageSlug(managementNumber: string): string {
+  return managementNumber.replace(".", "").toLowerCase();
+}
 
 // すべて架空のデータ。実在する盆栽・担当者・拠点名は使用しない。
 async function main() {
@@ -8,7 +26,10 @@ async function main() {
 
   // 既存データを削除してから投入する(何度実行しても同じ結果になるようにするため)。
   // 先にMaintenanceRecordを消す(Bonsaiが手入れ履歴を持つ間は削除できない制約のため)。
+  // BonsaiImageはonDelete: CascadeなのでBonsai削除時に自動で消えるが、
+  // AUTO_INCREMENTを戻すため明示的に削除しておく。
   await prisma.maintenanceRecord.deleteMany();
+  await prisma.bonsaiImage.deleteMany();
   await prisma.bonsai.deleteMany();
 
   // deleteManyだけではAUTO_INCREMENTのカウンタはリセットされないため、
@@ -17,6 +38,7 @@ async function main() {
   await prisma.$executeRawUnsafe(
     "ALTER TABLE maintenance_record AUTO_INCREMENT = 1",
   );
+  await prisma.$executeRawUnsafe("ALTER TABLE bonsai_image AUTO_INCREMENT = 1");
   await prisma.$executeRawUnsafe("ALTER TABLE bonsai AUTO_INCREMENT = 1");
 
   const bonsaiList = [
@@ -76,6 +98,25 @@ async function main() {
     await prisma.bonsai.create({ data });
   }
 
+  // 各盆栽に4方向の写真を紐付ける。
+  // 画像ファイルはpublic/images/bonsai/配下に配置済みで、DBにはパスだけを持たせる。
+  for (const bonsai of bonsaiList) {
+    const slug = toImageSlug(bonsai.managementNumber);
+    const created = await prisma.bonsai.findUniqueOrThrow({
+      where: { managementNumber: bonsai.managementNumber },
+    });
+
+    await prisma.bonsaiImage.createMany({
+      data: IMAGE_ANGLES.map(({ angle, slug: angleSlug, label, sortOrder }) => ({
+        bonsaiId: created.id,
+        angle,
+        imagePath: `/images/bonsai/${slug}-${angleSlug}.jpg`,
+        altText: `${bonsai.name}（${bonsai.species}）の${label}からの写真`,
+        sortOrder,
+      })),
+    });
+  }
+
   const bonsai001 = await prisma.bonsai.findUniqueOrThrow({
     where: { managementNumber: "No.001" },
   });
@@ -110,7 +151,9 @@ async function main() {
   });
 
   console.log(
-    `シード投入完了: Bonsai ${bonsaiList.length}件, MaintenanceRecord 3件`,
+    `シード投入完了: Bonsai ${bonsaiList.length}件, ` +
+      `BonsaiImage ${bonsaiList.length * IMAGE_ANGLES.length}件, ` +
+      `MaintenanceRecord 3件`,
   );
 }
 

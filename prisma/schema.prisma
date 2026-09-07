@@ -20,6 +20,14 @@ enum BonsaiStatus {
   INACTIVE // 管理対象外(譲渡・枯死など)
 }
 
+/// 盆栽写真の撮影方向。1鉢につき正面・右・左・背面の4方向を想定する。
+enum BonsaiImageAngle {
+  FRONT // 正面
+  RIGHT // 右
+  LEFT // 左
+  BACK // 背面
+}
+
 /// 手入れ履歴の作業種別。
 enum MaintenanceWorkType {
   WATERING // 水やり
@@ -46,8 +54,33 @@ model Bonsai {
   updatedAt            DateTime     @updatedAt
 
   maintenanceRecords MaintenanceRecord[]
+  images             BonsaiImage[]
 
   @@map("bonsai")
+}
+
+/// 盆栽の写真。1件の盆栽に対して複数枚（4方向）登録される（1対多）。
+/// 画像ファイル自体はDBに保存せず、public/配下のパスだけを持つ。
+model BonsaiImage {
+  id        Int              @id @default(autoincrement())
+  bonsaiId  Int
+  angle     BonsaiImageAngle
+  /// public/ からの相対パス（例: /images/bonsai/no001-front.jpg）
+  imagePath String
+  /// スクリーンリーダー向けの代替テキスト
+  altText   String
+  /// 画面上の表示順（正面→右→左→背面）
+  sortOrder Int
+  createdAt DateTime         @default(now())
+
+  // 盆栽が削除されたら写真も一緒に削除する。
+  // 手入れ履歴（業務記録なのでRestrict）と違い、写真は盆栽に完全に付随する
+  // データで、親が消えたら単独で残す意味がないためCascadeを選択。
+  bonsai Bonsai @relation(fields: [bonsaiId], references: [id], onDelete: Cascade)
+
+  // 同じ盆栽に同じ向きの写真が二重登録されないようにする。
+  @@unique([bonsaiId, angle])
+  @@map("bonsai_image")
 }
 
 /// 手入れ履歴。盆栽1件に対して複数件登録される(1対多)。
