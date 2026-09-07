@@ -85,17 +85,35 @@ push条件: seedデータを一覧・詳細で確認 ✅、存在しないID(`/b
   実行するたびに`id`が6, 7, 8…と増え続けた。「何度実行しても同じ結果になる」という
   seedスクリプト本来の意図に反するため、`ALTER TABLE ... AUTO_INCREMENT = 1`を追加して解決。
 
-## Day 5｜盆栽登録・編集・Zod
+## Day 5｜盆栽登録・編集・Zod(完了)
 
 ブランチ: `feature/bonsai-register-edit`
 
-- [ ] `/bonsai/new` 登録フォーム
-- [ ] `/bonsai/[id]/edit` 編集フォーム
-- [ ] Server Actions + Zodによるサーバー側検証
-- [ ] `managementNumber`重複時のエラー処理
-- [ ] 保存中・成功・失敗表示
+- [x] `/bonsai/new` 登録フォーム
+- [x] `/bonsai/[id]/edit` 編集フォーム
+- [x] Server Actions + Zodによるサーバー側検証
+- [x] `managementNumber`重複時のエラー処理
+- [x] 保存中・成功・失敗表示
 
-push条件: 正常系・異常系を確認、DBに想定外の値が入らない、内部エラーを画面へそのまま出さない。
+push条件: 正常系・異常系を確認 ✅(新規登録→詳細反映、編集→更新反映、必須項目未入力の
+Zodエラー、管理番号重複エラーをすべてブラウザ操作で確認)、DBに想定外の値が入らない ✅、
+内部エラーを画面へそのまま出さない ✅(Prismaのエラーはconsole.errorのみ、画面には
+汎用メッセージ)。lint・build成功 ✅。
+
+### 遭遇した問題と対応(面接説明用メモ)
+
+- **`"use server"`ファイルは非同期関数以外exportできない**: `actions.ts`に定数(初期state)を
+  一緒に書いたら`A "use server" file can only export async functions`でビルドエラー。
+  型・初期値は`form-state.ts`という別の通常ファイルに分離した。
+- **エラーで差し戻すと他の入力項目まで空になる**: `defaultValue`(非制御input)は初回マウント時
+  にしか効かないため、`useActionState`でstateが更新されても入力欄には反映されなかった。
+  Server Actionの戻り値に送信済みの値(`values`)を含めて返し、`<form key={...}>`で
+  stateが変わるたびにフォームごと再マウントさせることで解決。
+- **Windows + Docker Desktopでのファイル監視の不具合**: 新規ファイル(`form-state.ts`など)を
+  追加した直後、Turbopackがそれを検知できず`Module not found`になった。ブラウザの
+  Networkタブでサーバーの実際のレスポンスを見て「まだ古いコードが動いている」ことに気づき、
+  `docker compose restart app`で解決。既存ファイルの編集(HMR)は問題なく効くが、
+  **新規ファイル追加時だけは要注意**という学びをREADMEに追記した。
 
 ## Day 6｜手入れ履歴・1対多の実装
 

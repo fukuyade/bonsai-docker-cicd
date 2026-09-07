@@ -46,7 +46,15 @@ export default async function BonsaiDetailPage({
           <p className="text-sm text-gray-500">{bonsai.managementNumber}</p>
           <h1 className="text-2xl font-bold text-gray-900">{bonsai.name}</h1>
         </div>
-        <StatusBadge status={bonsai.status} />
+        <div className="flex items-center gap-3">
+          <StatusBadge status={bonsai.status} />
+          <Link
+            href={`/bonsai/${bonsai.id}/edit`}
+            className="rounded-full border border-gray-300 px-4 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
+          >
+            編集
+          </Link>
+        </div>
       </div>
 
       <dl className="divide-y divide-gray-200 rounded-lg border border-gray-200">

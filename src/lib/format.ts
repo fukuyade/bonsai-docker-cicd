@@ -7,3 +7,9 @@ export function formatDate(date: Date | null | undefined): string {
     day: "2-digit",
   }).format(date);
 }
+
+// <input type="date">のvalueに渡すための"YYYY-MM-DD"形式に変換する。
+export function toDateInputValue(date: Date | null | undefined): string {
+  if (!date) return "";
+  return date.toISOString().slice(0, 10);
+}

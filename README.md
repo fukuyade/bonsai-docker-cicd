@@ -21,17 +21,17 @@ Webアプリ化によって解消することを目的とした個人開発プ�
 | Next.js 16 (App Router) / TypeScript | フロントエンド・バックエンドを1つのコードベースで実装でき、Server Actionsで責務を分離しやすいため |
 | MySQL 8 + Prisma 7 | リレーショナルなデータ(盆栽 1 : 手入れ履歴 多)を型安全に扱うため。Prisma 7からdriver adapter方式になり、MySQLには`@prisma/adapter-mariadb`(ワイヤプロトコル互換)を使用 |
 | Docker Compose | `app`/`db` をコード化し、誰でも同じ環境を再現できるようにするため |
-| Zod | サーバー側の入力値検証を型定義と一体化するため |
+| Zod | サーバー側の入力値検証を型定義と一体化するため。Server Actionにブラウザを経由しない直接POSTが来ても必ず検証する |
 | Tailwind CSS | 管理画面のUIを素早く一貫したスタイルで組むため |
 
 技術選定の詳細な理由・バージョンは [docs/decisions.md](docs/decisions.md)(今後追加予定)にも記録していきます。
 
 ## 機能一覧(今週のMVP: P0)
 
-- [x] 盆栽情報の一覧・詳細(登録・編集はDay5で実装予定)
+- [x] 盆栽情報の一覧・登録・詳細・編集
 - [ ] 手入れ履歴の登録・表示
 - [x] 盆栽と手入れ履歴の1対多リレーション(DB設計・マイグレーション完了、画面は未実装)
-- [ ] 入力値検証(Zod)と例外処理
+- [x] 入力値検証(Zod)と例外処理(登録・編集フォーム)
 - [x] Docker ComposeでのNext.js + MySQL起動
 - [x] Prisma接続
 - [x] 初期ダミーデータ投入(seed)
@@ -44,15 +44,24 @@ P1(削除・検索・テスト・CI等)・P2(認証・画像アップロード�
 src/
   app/
     bonsai/
-      page.tsx          # 盆栽一覧
-      [id]/page.tsx      # 盆栽詳細(動的ルート)
-      [id]/not-found.tsx # 存在しないIDの404表示
-      _components/       # bonsai配下だけで使うUI部品(ルーティング対象外)
+      page.tsx             # 盆栽一覧
+      new/page.tsx          # 盆栽の新規登録
+      [id]/page.tsx          # 盆栽詳細(動的ルート)
+      [id]/edit/page.tsx      # 盆栽の編集
+      [id]/not-found.tsx      # 存在しないIDの404表示
+      actions.ts             # Server Actions(登録・更新)。"use server"
+      form-state.ts           # フォームstateの型・初期値("use server"ファイルは
+                               # 関数以外exportできないためactions.tsから分離)
+      _components/            # bonsai配下だけで使うUI部品(ルーティング対象外)
+        BonsaiForm.tsx          # 登録・編集共用のフォーム(useActionState)
+        StatusBadge.tsx
   lib/
     prisma.ts        # PrismaClientのシングルトン(driver adapter設定含む)
-    bonsai.ts         # 盆栽のDBアクセス関数(一覧・詳細取得)
+    bonsai.ts         # 盆栽のDBアクセス関数(一覧・詳細取得・作成・更新)
     bonsai-status.ts   # ステータスの日本語ラベル・色の対応表
     format.ts          # 日付表示などの共通フォーマッタ
+    validation/
+      bonsai.ts          # 登録・編集フォームのZodスキーマ
 public/           # 静的アセット
 prisma/
   schema.prisma   # DBスキーマ定義
@@ -106,7 +115,7 @@ docker compose up --build
 ```
 
 http://localhost:3000 で確認できます。ソースコードはbind mountされているため、
-`src/`配下を編集すると自動でホットリロードされます(コンテナの再ビルド不要)。
+既存ファイルの編集は基本的に自動でホットリロードされます(コンテナの再ビルド不要)。
 
 ```bash
 docker compose down       # 停止(dbのデータは保持される)
@@ -117,6 +126,13 @@ docker compose down -v    # 停止 + dbのデータも削除
 > 保持しているため、`docker compose up --build`だけでは古いvolumeの中身が残り反映されないことがある。
 > 依存関係を変えたときは `docker compose down && docker compose up --build` を実行する
 > (コンテナを作り直すことでvolumeも作り直される)。
+
+> **新規ファイル作成時の注意(Windows)**: Windows + Docker DesktopのbindmountはTurbopackの
+> ファイル監視が新規作成ファイルを検知しないことがある(既存ファイルの編集は反映されるのに、
+> 新しく`.ts`/`.tsx`を追加した直後だけ`Module not found`になる、など)。この場合は
+> `docker compose restart app` で解消する。反映されているか不安な場合はサーバーログ
+> (`docker compose logs app`)やNetworkタブのレスポンス内容で実際に新しいコードが
+> 動いているか確認するとよい。
 
 `app`コンテナは`db`という**サービス名**をホスト名としてMySQLへ接続します(`localhost`ではありません)。
 Docker Composeが作る内部ネットワークでは、サービス名がそのままDNS解決されるためです。
@@ -157,7 +173,7 @@ npm run build  # 本番ビルド
 1. ~~Docker Compose環境(Next.js + MySQL)~~ ✅ 完了
 2. ~~Prisma導入・スキーマ設計・マイグレーション・seed~~ ✅ 完了
 3. ~~盆栽一覧・詳細画面~~ ✅ 完了
-4. 盆栽登録・編集画面
+4. ~~盆栽登録・編集画面~~ ✅ 完了
 5. 手入れ履歴の登録・表示実装
 6. README・画面画像・工夫した点/苦労した点の追記
 
