@@ -11,6 +11,14 @@ async function main() {
   await prisma.maintenanceRecord.deleteMany();
   await prisma.bonsai.deleteMany();
 
+  // deleteManyだけではAUTO_INCREMENTのカウンタはリセットされないため、
+  // 複数回実行するとid が 6, 7, 8... と増え続けてしまう。
+  // 毎回同じid(1, 2, 3...)から採番されるよう明示的にリセットする。
+  await prisma.$executeRawUnsafe(
+    "ALTER TABLE maintenance_record AUTO_INCREMENT = 1",
+  );
+  await prisma.$executeRawUnsafe("ALTER TABLE bonsai AUTO_INCREMENT = 1");
+
   const bonsaiList = [
     {
       managementNumber: "No.001",
