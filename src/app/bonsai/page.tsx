@@ -34,15 +34,17 @@ export default async function BonsaiListPage() {
           登録されている盆栽がありません。
         </p>
       ) : (
+        // スマートフォンの幅ではセル内の文字が縦に折り返され読みにくくなるため、
+        // whitespace-nowrapで1行に固定し、代わりに横スクロール(overflow-x-auto)させる。
         <div className="overflow-x-auto rounded-lg border border-gray-200">
-          <table className="w-full border-collapse text-sm">
+          <table className="w-full min-w-[640px] border-collapse text-sm">
             <thead className="bg-gray-50 text-left text-gray-600">
               <tr>
-                <th className="p-3 font-medium">管理番号</th>
-                <th className="p-3 font-medium">名称</th>
-                <th className="p-3 font-medium">樹種</th>
-                <th className="p-3 font-medium">状態</th>
-                <th className="p-3 font-medium">設置場所</th>
+                <th className="p-3 font-medium whitespace-nowrap">管理番号</th>
+                <th className="p-3 font-medium whitespace-nowrap">名称</th>
+                <th className="p-3 font-medium whitespace-nowrap">樹種</th>
+                <th className="p-3 font-medium whitespace-nowrap">状態</th>
+                <th className="p-3 font-medium whitespace-nowrap">設置場所</th>
               </tr>
             </thead>
             <tbody>
@@ -51,7 +53,7 @@ export default async function BonsaiListPage() {
                   key={bonsai.id}
                   className="border-t border-gray-200 hover:bg-gray-50"
                 >
-                  <td className="p-3">
+                  <td className="p-3 whitespace-nowrap">
                     <Link
                       href={`/bonsai/${bonsai.id}`}
                       className="font-medium text-blue-600 hover:underline"
@@ -59,12 +61,16 @@ export default async function BonsaiListPage() {
                       {bonsai.managementNumber}
                     </Link>
                   </td>
-                  <td className="p-3 text-gray-900">{bonsai.name}</td>
-                  <td className="p-3 text-gray-700">{bonsai.species}</td>
-                  <td className="p-3">
+                  <td className="p-3 whitespace-nowrap text-gray-900">
+                    {bonsai.name}
+                  </td>
+                  <td className="p-3 whitespace-nowrap text-gray-700">
+                    {bonsai.species}
+                  </td>
+                  <td className="p-3 whitespace-nowrap">
                     <StatusBadge status={bonsai.status} />
                   </td>
-                  <td className="p-3 text-gray-700">
+                  <td className="p-3 whitespace-nowrap text-gray-700">
                     {bonsai.location ?? "-"}
                   </td>
                 </tr>
