@@ -29,8 +29,8 @@ Webアプリ化によって解消することを目的とした個人開発プ�
 ## 機能一覧(今週のMVP: P0)
 
 - [x] 盆栽情報の一覧・登録・詳細・編集
-- [ ] 手入れ履歴の登録・表示
-- [x] 盆栽と手入れ履歴の1対多リレーション(DB設計・マイグレーション完了、画面は未実装)
+- [x] 手入れ履歴の登録・表示
+- [x] 盆栽と手入れ履歴の1対多リレーション
 - [x] 入力値検証(Zod)と例外処理(登録・編集フォーム)
 - [x] Docker ComposeでのNext.js + MySQL起動
 - [x] Prisma接続
@@ -46,10 +46,15 @@ src/
     bonsai/
       page.tsx             # 盆栽一覧
       new/page.tsx          # 盆栽の新規登録
-      [id]/page.tsx          # 盆栽詳細(動的ルート)
+      [id]/page.tsx          # 盆栽詳細(動的ルート、手入れ履歴一覧も表示)
       [id]/edit/page.tsx      # 盆栽の編集
       [id]/not-found.tsx      # 存在しないIDの404表示
-      actions.ts             # Server Actions(登録・更新)。"use server"
+      [id]/maintenance/
+        actions.ts              # 手入れ履歴登録のServer Action
+        form-state.ts
+        new/page.tsx            # 手入れ履歴の登録
+        _components/MaintenanceForm.tsx
+      actions.ts             # Server Actions(盆栽の登録・更新)。"use server"
       form-state.ts           # フォームstateの型・初期値("use server"ファイルは
                                # 関数以外exportできないためactions.tsから分離)
       _components/            # bonsai配下だけで使うUI部品(ルーティング対象外)
@@ -59,9 +64,12 @@ src/
     prisma.ts        # PrismaClientのシングルトン(driver adapter設定含む)
     bonsai.ts         # 盆栽のDBアクセス関数(一覧・詳細取得・作成・更新)
     bonsai-status.ts   # ステータスの日本語ラベル・色の対応表
+    maintenance.ts      # 手入れ履歴の作成関数
+    maintenance-work-type.ts # 作業種別の日本語ラベル
     format.ts          # 日付表示などの共通フォーマッタ
     validation/
       bonsai.ts          # 登録・編集フォームのZodスキーマ
+      maintenance.ts      # 手入れ履歴フォームのZodスキーマ
 public/           # 静的アセット
 prisma/
   schema.prisma   # DBスキーマ定義
@@ -174,7 +182,7 @@ npm run build  # 本番ビルド
 2. ~~Prisma導入・スキーマ設計・マイグレーション・seed~~ ✅ 完了
 3. ~~盆栽一覧・詳細画面~~ ✅ 完了
 4. ~~盆栽登録・編集画面~~ ✅ 完了
-5. 手入れ履歴の登録・表示実装
+5. ~~手入れ履歴の登録・表示実装~~ ✅ 完了
 6. README・画面画像・工夫した点/苦労した点の追記
 
 ## AIを使った範囲(進行中・随時更新)
