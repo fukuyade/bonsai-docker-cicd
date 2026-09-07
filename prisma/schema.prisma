@@ -1,0 +1,71 @@
+// Prisma Schema: 盆栽管理アプリ
+// 参考: Notion「Claude Code 引き継ぎ書」7節のDB設計を、公開用の架空データ運用に合わせて実装。
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// Prisma 7以降、接続URLはschema.prismaではなく prisma.config.ts (CLI/Migrate用)と
+// PrismaClientのdriver adapter(アプリ実行時用)で指定する。
+// (参考: https://pris.ly/d/prisma7-client-config)
+datasource db {
+  provider = "mysql"
+}
+
+/// 盆栽の管理状態。Excel運用の「状態」列を型で表現する。
+enum BonsaiStatus {
+  HEALTHY // 健康
+  NEEDS_CARE // 手入れが必要
+  UNDER_TREATMENT // 治療中
+  INACTIVE // 管理対象外(譲渡・枯死など)
+}
+
+/// 手入れ履歴の作業種別。
+enum MaintenanceWorkType {
+  WATERING // 水やり
+  PRUNING // 剪定
+  REPOTTING // 植え替え
+  FERTILIZING // 施肥
+  PEST_CONTROL // 病害虫防除
+  OTHER // その他
+}
+
+/// 盆栽本体。
+model Bonsai {
+  id                   Int          @id @default(autoincrement())
+  /// 現行Excelの管理番号に相当する業務キー。表示・検索の主な識別子。
+  managementNumber     String       @unique
+  name                 String
+  species              String
+  status               BonsaiStatus @default(HEALTHY)
+  location             String?
+  acquiredAt           DateTime?
+  nextMaintenanceDate  DateTime?
+  memo                 String?      @db.Text
+  createdAt            DateTime     @default(now())
+  updatedAt            DateTime     @updatedAt
+
+  maintenanceRecords MaintenanceRecord[]
+
+  @@map("bonsai")
+}
+
+/// 手入れ履歴。盆栽1件に対して複数件登録される(1対多)。
+model MaintenanceRecord {
+  id              Int                 @id @default(autoincrement())
+  bonsaiId        Int
+  maintenanceDate DateTime
+  workType        MaintenanceWorkType
+  /// 担当者名は架空データのみを想定(実在の担当者名は入れない)。
+  workerName      String?
+  memo            String?             @db.Text
+  createdAt       DateTime            @default(now())
+
+  // onDelete: Restrict — 手入れ履歴が残っている盆栽は誤って削除できないようにする。
+  // (引き継ぎ書7節「履歴がある盆栽の削除を制限してもよい」を採用)
+  bonsai Bonsai @relation(fields: [bonsaiId], references: [id], onDelete: Restrict)
+
+  // 盆栽詳細画面で「実施日の降順」に一覧表示するためのインデックス。
+  @@index([bonsaiId, maintenanceDate])
+  @@map("maintenance_record")
+}
