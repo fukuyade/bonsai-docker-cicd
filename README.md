@@ -54,6 +54,8 @@ src/
         form-state.ts
         new/page.tsx            # 手入れ履歴の登録
         _components/MaintenanceForm.tsx
+      loading.tsx             # 読み込み中のスケルトン表示
+      error.tsx                # 想定外の例外(DB接続断など)用のエラーバウンダリ
       actions.ts             # Server Actions(盆栽の登録・更新)。"use server"
       form-state.ts           # フォームstateの型・初期値("use server"ファイルは
                                # 関数以外exportできないためactions.tsから分離)
@@ -176,6 +178,17 @@ npm run lint   # ESLint
 npm run build  # 本番ビルド
 ```
 
+## エラー処理・UI
+
+- `loading.tsx`: `/bonsai`配下のページ読み込み中はスケルトンを表示(Next.jsが自動でSuspense境界にする)
+- `error.tsx`: DB接続断などの想定外の例外を捕捉するエラーバウンダリ。詳細はサーバーログにのみ出力し、
+  画面には汎用メッセージのみ表示(本番ビルドで、ブラウザへスタックトレース等が一切渡らないことを確認済み)
+- `not-found.tsx`: 存在しないIDへのアクセスはHTTP 404
+- Zodによるサーバー側検証・Prismaの制約違反(重複・外部キー)はすべて利用者向けメッセージへ変換
+- 保存中はボタンをdisabledにして二重送信を防止
+- スマートフォン幅(375px)で一覧・詳細・登録・編集・履歴登録の各画面を確認。
+  一覧テーブルは横スクロール(`overflow-x-auto` + `whitespace-nowrap`)で見切れを防止
+
 ## 今後の予定
 
 1. ~~Docker Compose環境(Next.js + MySQL)~~ ✅ 完了
@@ -183,7 +196,8 @@ npm run build  # 本番ビルド
 3. ~~盆栽一覧・詳細画面~~ ✅ 完了
 4. ~~盆栽登録・編集画面~~ ✅ 完了
 5. ~~手入れ履歴の登録・表示実装~~ ✅ 完了
-6. README・画面画像・工夫した点/苦労した点の追記
+6. ~~エラー処理・UI・公開情報確認~~ ✅ 完了
+7. 画面画像・工夫した点/苦労した点の追記、応募
 
 ## AIを使った範囲(進行中・随時更新)
 
