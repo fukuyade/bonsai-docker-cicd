@@ -13,3 +13,12 @@ export const emptyBonsaiFormState: BonsaiFormState = {
   fieldErrors: {},
   values: {},
 };
+
+// 削除確認画面用のstate。削除は入力項目がないのでmessageだけを持つ。
+export type BonsaiDeleteState = {
+  message: string | null;
+};
+
+export const emptyBonsaiDeleteState: BonsaiDeleteState = {
+  message: null,
+};

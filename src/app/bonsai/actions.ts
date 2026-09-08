@@ -4,13 +4,13 @@ import { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
-import { createBonsai, updateBonsai } from "@/lib/bonsai";
+import { createBonsai, deleteBonsai, updateBonsai } from "@/lib/bonsai";
 import {
   bonsaiFormSchema,
   toBonsaiCreateInput,
 } from "@/lib/validation/bonsai";
 
-import type { BonsaiFormState } from "./form-state";
+import type { BonsaiDeleteState, BonsaiFormState } from "./form-state";
 
 // Server Actionはフォームから直接POSTで呼ばれる。ブラウザの入力チェックを
 // 迂回して(devtoolsで直接POSTするなど)不正な値が送られる可能性もあるため、
@@ -61,6 +61,18 @@ function isUniqueConstraintError(
   return (
     error instanceof Prisma.PrismaClientKnownRequestError &&
     error.code === "P2002"
+  );
+}
+
+// 外部キー制約違反(P2003)かどうかを判定する。
+// 手入れ履歴が残っている盆栽を削除しようとすると、
+// onDelete: Restrict によりDB側で拒否されこのエラーになる。
+function isForeignKeyConstraintError(
+  error: unknown,
+): error is Prisma.PrismaClientKnownRequestError {
+  return (
+    error instanceof Prisma.PrismaClientKnownRequestError &&
+    error.code === "P2003"
   );
 }
 
@@ -145,4 +157,33 @@ export async function updateBonsaiAction(
   revalidatePath("/bonsai");
   revalidatePath(`/bonsai/${id}`);
   redirect(`/bonsai/${id}`);
+}
+
+// 盆栽の削除。削除確認画面のフォームから呼ばれる。
+//
+// 「履歴があるかを事前にSELECTして判定する」方式は、確認と削除の間に
+// 履歴が追加されると通り抜けてしまう(競合状態)。
+// DBの外部キー制約(onDelete: Restrict)に任せ、拒否されたエラーを
+// 利用者向けメッセージへ変換する方が確実。
+export async function deleteBonsaiAction(
+  id: number,
+  _prevState: BonsaiDeleteState,
+): Promise<BonsaiDeleteState> {
+  try {
+    await deleteBonsai(id);
+  } catch (error) {
+    if (isForeignKeyConstraintError(error)) {
+      return {
+        message:
+          "この盆栽には手入れ履歴が登録されているため削除できません。先に履歴を整理してください。",
+      };
+    }
+    console.error("盆栽の削除に失敗しました:", error);
+    return {
+      message: "削除に失敗しました。時間をおいて再度お試しください。",
+    };
+  }
+
+  revalidatePath("/bonsai");
+  redirect("/bonsai");
 }
