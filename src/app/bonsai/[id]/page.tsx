@@ -57,6 +57,12 @@ export default async function BonsaiDetailPage({
           >
             編集
           </Link>
+          <Link
+            href={`/bonsai/${bonsai.id}/delete`}
+            className="rounded-full border border-red-200 px-4 py-1.5 text-sm font-medium text-red-600 transition-colors hover:bg-red-50"
+          >
+            削除
+          </Link>
         </div>
       </div>
 

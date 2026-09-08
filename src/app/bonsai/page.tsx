@@ -1,7 +1,9 @@
 import Link from "next/link";
 
-import { listBonsai } from "@/lib/bonsai";
+import { listBonsai, listBonsaiLocations } from "@/lib/bonsai";
+import { hasSearchCondition } from "@/lib/bonsai-search";
 
+import { BonsaiSearchForm } from "./_components/BonsaiSearchForm";
 import { StatusBadge } from "./_components/StatusBadge";
 
 // このページはビルド時に静的化せず、リクエストの度にDBから最新状態を取得する。
@@ -11,8 +13,27 @@ export const dynamic = "force-dynamic";
 
 // Server Component: DBアクセス(listBonsai)をサーバー側だけで実行し、
 // 結果のHTMLだけをクライアントへ送る。DB接続情報やクエリはブラウザに出ない。
-export default async function BonsaiListPage() {
-  const bonsaiList = await listBonsai();
+//
+// searchParamsにはURLのクエリパラメータ(?keyword=松&status=HEALTHY)が入る。
+// Next.js 16ではparamsと同様にPromiseなのでawaitして取り出す。
+export default async function BonsaiListPage({
+  searchParams,
+}: {
+  searchParams: Promise<{
+    keyword?: string;
+    status?: string;
+    location?: string;
+  }>;
+}) {
+  const params = await searchParams;
+
+  // 一覧と絞り込み候補は互いに依存しないので、Promise.allで並行に取得する。
+  const [bonsaiList, locations] = await Promise.all([
+    listBonsai(params),
+    listBonsaiLocations(),
+  ]);
+
+  const searching = hasSearchCondition(params);
 
   return (
     <main className="mx-auto max-w-4xl px-6 py-10">
@@ -29,9 +50,14 @@ export default async function BonsaiListPage() {
         </div>
       </div>
 
+      <BonsaiSearchForm searchParams={params} locations={locations} />
+
       {bonsaiList.length === 0 ? (
+        // 「検索して0件」と「そもそも1件も登録がない」で文言を出し分ける。
         <p className="rounded-lg border border-dashed border-gray-300 p-8 text-center text-gray-500">
-          登録されている盆栽がありません。
+          {searching
+            ? "条件に一致する盆栽が見つかりませんでした。"
+            : "登録されている盆栽がありません。"}
         </p>
       ) : (
         // スマートフォンの幅ではセル内の文字が縦に折り返され読みにくくなるため、

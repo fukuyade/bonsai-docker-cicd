@@ -13,6 +13,17 @@ const eslintConfig = defineConfig([
     "build/**",
     "next-env.d.ts",
   ]),
+  {
+    rules: {
+      // Server Actionは (prevState, formData) というシグネチャが決まっており、
+      // prevStateを使わない場合でも引数として受け取る必要がある。
+      // アンダースコア始まりの引数は「意図的に使っていない」印として許可する。
+      "@typescript-eslint/no-unused-vars": [
+        "warn",
+        { argsIgnorePattern: "^_", varsIgnorePattern: "^_" },
+      ],
+    },
+  },
 ]);
 
 export default eslintConfig;
