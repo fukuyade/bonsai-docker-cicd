@@ -24,6 +24,8 @@ Webアプリ化によって解消することを目的とした個人開発プ�
 | Docker Compose | `app`/`db` をコード化し、誰でも同じ環境を再現できるようにするため |
 | Zod | サーバー側の入力値検証を型定義と一体化するため。Server Actionにブラウザを経由しない直接POSTが来ても必ず検証する |
 | Tailwind CSS | 管理画面のUIを素早く一貫したスタイルで組むため |
+| Vitest | 設定が軽く、TypeScriptをそのまま実行できるため。DBを起動せず純粋関数を検証する用途に合う |
+| GitHub Actions | PRのたびにlint・test・buildを自動実行し、「自分の環境でだけ動く」状態を防ぐため |
 
 技術選定の詳細な理由や、実装中に遭遇した問題・対応は [docs/issues.md](docs/issues.md) に
 Day単位で記録しています。
@@ -97,9 +99,14 @@ src/
     maintenance.ts      # 手入れ履歴の作成関数
     maintenance-work-type.ts # 作業種別の日本語ラベル
     format.ts          # 日付表示などの共通フォーマッタ
+    bonsai-search.ts    # 検索条件からwhere句を組み立てる純粋関数
+    bonsai-search.test.ts  # 上記のテスト
     validation/
       bonsai.ts          # 登録・編集フォームのZodスキーマ
+      bonsai.test.ts      # 上記のテスト(正常系・異常系・境界値)
       maintenance.ts      # 手入れ履歴フォームのZodスキーマ
+.github/workflows/ci.yml  # lint・test・buildの自動実行
+vitest.config.mts         # テスト設定
 public/           # 静的アセット
 prisma/
   schema.prisma   # DBスキーマ定義
@@ -224,6 +231,37 @@ npm run lint   # ESLint
 npm run build  # 本番ビルド
 ```
 
+## テスト
+
+Vitestによる単体テストを用意しています。**DBを起動しなくても実行できます**
+（テスト対象を、DBアクセスを含まない純粋関数に絞っているため）。
+
+```bash
+npm test        # 1回実行
+npm run test:watch  # 変更を監視して自動実行
+```
+
+| テスト対象 | 内容 |
+|---|---|
+| `src/lib/validation/bonsai.test.ts` | Zod入力検証の正常系・異常系・境界値（50文字ちょうど/51文字など）、フォーム値→DB入力への変換 |
+| `src/lib/bonsai-search.test.ts` | 検索条件からwhere句を組み立てるロジック、不正なstatusを無視する挙動 |
+
+💡 **テストしやすさを意識した設計**: 検索条件の組み立て（`buildBonsaiWhere`）は、
+あえてDB処理から切り離した純粋関数にしています。DBを立てずに、入力に対して
+期待するwhere句が組み立てられるかだけを検証できます。
+
+## CI（GitHub Actions）
+
+`.github/workflows/ci.yml` で、`main`へのpushとPRのたびに **lint → test → build** を自動実行します。
+
+- Node.jsのバージョンはDockerイメージと同じ24に揃えています
+- `prisma generate` をlint/test/buildより前に実行します（型定義がここで生成されるため）
+- CIではDBに接続しません。ページは`force-dynamic`でビルド時にDBへ接続せず、
+  テストも純粋関数のみのためです。ただし`prisma.config.ts`の読み込み時に環境変数の
+  存在チェックが行われるので、ダミー値を渡しています
+
+意図的にテストを失敗させると終了コード1が返り、CIが失敗として検知することを確認済みです。
+
 ## エラー処理・UI
 
 - `loading.tsx`: `/bonsai`配下のページ読み込み中はスケルトンを表示(Next.jsが自動でSuspense境界にする)
@@ -274,9 +312,8 @@ npm run build  # 本番ビルド
 
 MVP範囲外として今回は見送った項目です。理由も含めて記載します。
 
-- **盆栽の削除機能・検索/絞り込み**: 応募を優先するため今回は一覧・登録・編集・履歴登録に絞った
-- **テスト自動化(Vitest)・GitHub Actions(CI)**: 手動での動作確認は各Dayで実施済みだが、
-  自動テストによる回帰防止は今後追加したい
+- **E2Eテスト（Playwright等）**: 現在は純粋関数の単体テストのみ。画面操作を通した
+  結合テストは、実行時間とメンテナンスコストを見ながら段階的に追加したい
 - **認証・権限管理**: 今回は社内向け想定のシンプルな構成のため未実装。実運用ではユーザーごとの
   権限管理が必要
 - **画像アップロード(S3等)**: 盆栽の写真管理は元の実務要件にはあったが、公開ポートフォリオの
