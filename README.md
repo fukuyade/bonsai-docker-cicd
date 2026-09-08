@@ -1,6 +1,7 @@
 # 盆栽管理アプリ (bonsai-docker-cicd)
 
 > 個人開発ポートフォリオ。実在の盆栽・担当者・顧客情報は使用せず、架空データのみで構成しています。
+> **掲載している盆栽の写真はすべて生成AIで作成した架空の画像**であり、実在の盆栽を撮影したものではありません。
 
 ## 概要
 
@@ -47,6 +48,7 @@ Docker Composeで起動すると、上記の画面をすべて実際に操作し
 
 - [x] 盆栽情報の一覧・登録・詳細・編集
 - [x] 手入れ履歴の登録・表示
+- [x] 盆栽ごとの4方向写真（正面・右・左・背面）の表示
 - [x] 盆栽と手入れ履歴の1対多リレーション
 - [x] 入力値検証(Zod)と例外処理(登録・編集フォーム)
 - [x] Docker ComposeでのNext.js + MySQL起動
@@ -63,9 +65,10 @@ src/
     bonsai/
       page.tsx             # 盆栽一覧
       new/page.tsx          # 盆栽の新規登録
-      [id]/page.tsx          # 盆栽詳細(動的ルート、手入れ履歴一覧も表示)
+      [id]/page.tsx          # 盆栽詳細(動的ルート、写真ギャラリー・手入れ履歴も表示)
       [id]/edit/page.tsx      # 盆栽の編集
       [id]/not-found.tsx      # 存在しないIDの404表示
+      [id]/_components/BonsaiImageGallery.tsx  # 4方向写真ギャラリー
       [id]/maintenance/
         actions.ts              # 手入れ履歴登録のServer Action
         form-state.ts
@@ -83,6 +86,7 @@ src/
     prisma.ts        # PrismaClientのシングルトン(driver adapter設定含む)
     bonsai.ts         # 盆栽のDBアクセス関数(一覧・詳細取得・作成・更新)
     bonsai-status.ts   # ステータスの日本語ラベル・色の対応表
+    bonsai-image-angle.ts # 写真の向きの日本語ラベル
     maintenance.ts      # 手入れ履歴の作成関数
     maintenance-work-type.ts # 作業種別の日本語ラベル
     format.ts          # 日付表示などの共通フォーマッタ
@@ -106,6 +110,7 @@ compose.yaml      # app・db 2サービスの定義
 ```mermaid
 erDiagram
     Bonsai ||--o{ MaintenanceRecord : "1対多"
+    Bonsai ||--o{ BonsaiImage : "1対多"
     Bonsai {
         int id PK
         string managementNumber UK "管理番号"
@@ -125,10 +130,27 @@ erDiagram
         string workerName
         text memo
     }
+    BonsaiImage {
+        int id PK
+        int bonsaiId FK
+        enum angle "FRONT/RIGHT/LEFT/BACK"
+        string imagePath "public配下の相対パス"
+        string altText
+        int sortOrder
+    }
 ```
 
-盆栽1件に対して手入れ履歴を複数件登録できる1対多構成。手入れ履歴が残っている盆栽は
-誤って削除できないよう `onDelete: Restrict` を設定している(詳細は`prisma/schema.prisma`のコメント参照)。
+盆栽1件に対して、手入れ履歴と写真をそれぞれ複数件持つ1対多構成です。
+
+**削除時の挙動を関連ごとに変えています（設計判断）**
+
+| 関連 | 設定 | 理由 |
+|---|---|---|
+| 盆栽 → 手入れ履歴 | `onDelete: Restrict` | 業務記録なので、盆栽と一緒に黙って消えると困る。履歴が残っている盆栽は削除させない |
+| 盆栽 → 写真 | `onDelete: Cascade` | 写真は盆栽に完全に付随するデータで、親が消えたら単独で残す意味がない |
+
+写真は `@@unique([bonsaiId, angle])` により、**同じ盆栽に同じ向きの写真が二重登録されない**ようDB側で保証しています。
+画像ファイル自体はDBに保存せず、`public/images/bonsai/` に置いたファイルへのパスだけをDBが持ちます。
 
 ## 開発環境の起動手順
 
@@ -222,6 +244,10 @@ npm run build  # 本番ビルド
 - **開発時と本番時のエラー表示の違いを明示的に確認**: `next build`した本番相当の
   ビルドで意図的にDB接続を切り、ブラウザ側に内部情報(スタックトレース等)が
   一切渡らないことを実地で確認した上でエラーバウンダリを実装している。
+- **画像はDBに入れずパスで管理し、リポジトリ用に圧縮**: 画像バイナリをDBに持たせると
+  バックアップや転送が重くなるため、ファイルは`public/`に置きパスだけをDBで管理している。
+  また元画像(1254px PNG・計42MB)はポートフォリオのリポジトリとしては重すぎるため、
+  800px・JPEG(品質82)へ変換して計2MB(約95%削減)に抑えた。
 
 ## 苦労した点と解決方法
 

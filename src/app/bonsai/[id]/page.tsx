@@ -7,6 +7,8 @@ import { MAINTENANCE_WORK_TYPE_LABEL } from "@/lib/maintenance-work-type";
 
 import { StatusBadge } from "../_components/StatusBadge";
 
+import { BonsaiImageGallery } from "./_components/BonsaiImageGallery";
+
 // /bonsai/page.tsxと同じ理由でビルド時の静的化を無効にする。
 export const dynamic = "force-dynamic";
 
@@ -56,6 +58,10 @@ export default async function BonsaiDetailPage({
             編集
           </Link>
         </div>
+      </div>
+
+      <div className="mb-8">
+        <BonsaiImageGallery images={bonsai.images} />
       </div>
 
       <dl className="divide-y divide-gray-200 rounded-lg border border-gray-200">
