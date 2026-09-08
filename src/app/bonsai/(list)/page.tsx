@@ -3,8 +3,8 @@ import Link from "next/link";
 import { listBonsai, listBonsaiLocations } from "@/lib/bonsai";
 import { hasSearchCondition } from "@/lib/bonsai-search";
 
-import { BonsaiSearchForm } from "./_components/BonsaiSearchForm";
-import { StatusBadge } from "./_components/StatusBadge";
+import { BonsaiSearchForm } from "../_components/BonsaiSearchForm";
+import { StatusBadge } from "../_components/StatusBadge";
 
 // このページはビルド時に静的化せず、リクエストの度にDBから最新状態を取得する。
 // 指定しない場合、DBアクセスがあってもNext.jsはビルド時の静的化を試みてしまい、

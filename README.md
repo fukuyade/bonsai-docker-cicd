@@ -63,6 +63,7 @@ Docker Composeで起動すると、上記の画面をすべて実際に操作し
 - [x] Docker ComposeでのNext.js + MySQL起動
 - [x] Prisma接続
 - [x] 初期ダミーデータ投入(seed)
+- [x] 単体テスト(Vitest)とCI(GitHub Actions)
 
 P1(削除・検索・テスト・CI等)・P2(認証・画像アップロード・デプロイ等)は今回のMVP範囲外です。詳細は下記の「今後の改善案」を参照してください。
 
@@ -72,7 +73,8 @@ P1(削除・検索・テスト・CI等)・P2(認証・画像アップロード�
 src/
   app/
     bonsai/
-      page.tsx             # 盆栽一覧
+      (list)/page.tsx       # 盆栽一覧（ルートグループなのでURLは /bonsai）
+      (list)/loading.tsx     # 一覧の読み込み中スケルトン
       new/page.tsx          # 盆栽の新規登録
       [id]/page.tsx          # 盆栽詳細(動的ルート、写真ギャラリー・手入れ履歴も表示)
       [id]/edit/page.tsx      # 盆栽の編集
@@ -83,7 +85,6 @@ src/
         form-state.ts
         new/page.tsx            # 手入れ履歴の登録
         _components/MaintenanceForm.tsx
-      loading.tsx             # 読み込み中のスケルトン表示
       error.tsx                # 想定外の例外(DB接続断など)用のエラーバウンダリ
       actions.ts             # Server Actions(盆栽の登録・更新)。"use server"
       form-state.ts           # フォームstateの型・初期値("use server"ファイルは
@@ -264,7 +265,10 @@ npm run test:watch  # 変更を監視して自動実行
 
 ## エラー処理・UI
 
-- `loading.tsx`: `/bonsai`配下のページ読み込み中はスケルトンを表示(Next.jsが自動でSuspense境界にする)
+- `loading.tsx`: 一覧ページの読み込み中はスケルトンを表示(Next.jsが自動でSuspense境界にする)。
+  **`(list)`というルートグループの中に置いている**のは、`loading.tsx`のある階層は
+  ストリーミングが有効になり、ヘッダー(200 OK)が先に送出されて`notFound()`が
+  404を設定できなくなるため。一覧だけを囲むことで、スケルトン表示と詳細ページの正しい404を両立させている
 - `error.tsx`: DB接続断などの想定外の例外を捕捉するエラーバウンダリ。詳細はサーバーログにのみ出力し、
   画面には汎用メッセージのみ表示(本番ビルドで、ブラウザへスタックトレース等が一切渡らないことを確認済み)
 - `not-found.tsx`: 存在しないIDへのアクセスはHTTP 404
@@ -307,6 +311,8 @@ npm run test:watch  # 変更を監視して自動実行
 | Windows + Docker Desktopで新規ファイル追加時だけTurbopackのホットリロードが効かないことがあった | `docker compose restart app`で解消。既存ファイルの編集は問題なし |
 | DBアクセスのあるページがビルド時に静的化されようとしてビルドが失敗した | `export const dynamic = "force-dynamic"`を明示し、常に最新のDB状態をリクエスト時に取得するようにした |
 | フォームがエラーで差し戻されると、他の入力項目まで空に戻ってしまった | Server Actionの戻り値に送信済みの値を含め、`<form key={...}>`で再マウントさせて反映 |
+| 404の画面は出るのにHTTPステータスが200のままだった | `loading.tsx`があるとストリーミングでヘッダーが先に送出され、あとから`notFound()`で404にできないことが原因。ルートグループ`(list)`で一覧だけを囲み、詳細ページをストリーミング対象から外して解決 |
+| Vitest 5 が `@types/node` のバージョン衝突でインストールできなかった | `--legacy-peer-deps`で回避せず、実行環境（Node 24）に型定義を合わせて`@types/node@^24`へ更新 |
 
 ## 今後の改善案
 
@@ -324,10 +330,12 @@ MVP範囲外として今回は見送った項目です。理由も含めて記�
 
 このプロジェクトは Claude Code を利用して実装しました。
 
-- **AIに任せた部分**: 各Dayの実装(コンポーネント・Server Actions・Prismaスキーマ等)の
-  コーディング、エラーメッセージやコミットメッセージの文面、公式ドキュメントの調査
-- **本人が判断・確認した部分**: 各Dayの要件・優先順位の決定、実装方針(Server Actions採用、
-  DBアクセス層の分離、権限設計など)の承認、ブラウザでの実際の動作確認(正常系・異常系・
-  レスポンシブ)、GitHub Issue相当の記録([docs/issues.md](docs/issues.md))とPull Requestの
+- **AIに任せた部分**: 実装(コンポーネント・Server Actions・Prismaスキーマ・テスト・
+  CI設定)のコーディング、エラーメッセージやコミットメッセージの文面、公式ドキュメントの調査
+- **本人が判断・確認した部分**: 要件・優先順位の決定、実装方針(Server Actions採用、
+  DBアクセス層の分離、削除方式、権限設計など)の承認、ブラウザでの実際の動作確認
+  (正常系・異常系・レスポンシブ)、記録([docs/issues.md](docs/issues.md))とPull Requestの
   作成・マージ判断、公開前の実在情報混入チェック
 - 各PRの本文に、目的・変更内容・設計判断・動作確認結果を記録しています
+- 実装中に発生した問題(Prisma 7の破壊的変更、404ステータスの回帰など)は、
+  原因の切り分け方と対処を [docs/issues.md](docs/issues.md) に残しています
