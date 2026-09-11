@@ -5,8 +5,15 @@ import { PrismaClient } from "@prisma/client";
 // driver adapterを介して接続する。MySQL 8には(ワイヤプロトコル互換の)
 // MariaDB用アダプター(@prisma/adapter-mariadb)を使うのが公式の案内。
 // (参考: https://pris.ly/d/prisma7-client-config)
+// ローカル開発(Docker Compose)ではサービス名"db"へ非TLSで接続するが、
+// 本番(Vercel + TiDB Cloud等の外部ホスティング)はTLS必須のことが多い。
+// ホスト名がDocker/localhost以外なら自動でTLSを有効にする
+// (本番用に環境変数を追加せずに済むよう、接続先ホスト名から判定している)。
+const LOCAL_HOSTNAMES = ["db", "localhost", "127.0.0.1"];
+
 function createPrismaClient() {
   const url = new URL(process.env.DATABASE_URL ?? "");
+  const isLocal = LOCAL_HOSTNAMES.includes(url.hostname);
 
   const adapter = new PrismaMariaDb({
     host: url.hostname,
@@ -16,8 +23,11 @@ function createPrismaClient() {
     database: url.pathname.replace(/^\//, ""),
     // MySQL 8のデフォルト認証方式(caching_sha2_password)は、非TLS接続では
     // サーバーの公開鍵取得を許可しないとハンドシェイクが完了しない。
-    // ローカル開発ではTLSを使っていないため明示的に許可する。
+    // ローカル開発ではTLSを使っていないため明示的に許可する
+    // (TLS接続時はこのオプション自体が意味を持たないため無害)。
     allowPublicKeyRetrieval: true,
+    // 本番の外部MySQLホスティングは大抵TLS必須のため、ローカル以外では有効化する。
+    ...(isLocal ? {} : { ssl: {} }),
   });
   return new PrismaClient({ adapter });
 }
