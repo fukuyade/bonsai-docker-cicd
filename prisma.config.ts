@@ -14,6 +14,12 @@ export default defineConfig({
     url: env("DATABASE_URL"),
     // `migrate dev` が一時的に使うshadow database。bonsai_userはbonsaiデータベースのみの
     // 権限しか持たないため、データベース作成権限を持つroot接続を別途指定する。
-    shadowDatabaseUrl: env("SHADOW_DATABASE_URL"),
+    //
+    // SHADOW_DATABASE_URLは`migrate dev`(ローカル開発)でのみ使う変数で、
+    // 本番のビルド(`prisma generate`のみ実行)では不要。`env()`は未設定だと
+    // 例外を投げるため、値がある時だけ渡すようにして本番ビルドを壊さないようにする。
+    ...(process.env.SHADOW_DATABASE_URL
+      ? { shadowDatabaseUrl: env("SHADOW_DATABASE_URL") }
+      : {}),
   },
 });
