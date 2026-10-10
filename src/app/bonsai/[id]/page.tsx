@@ -115,9 +115,17 @@ export default async function BonsaiDetailPage({
                   <span className="text-sm font-medium text-gray-900">
                     {formatDate(record.maintenanceDate)}
                   </span>
-                  <span className="rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-700">
-                    {MAINTENANCE_WORK_TYPE_LABEL[record.workType]}
-                  </span>
+                  <div className="flex items-center gap-3">
+                    <span className="rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-700">
+                      {MAINTENANCE_WORK_TYPE_LABEL[record.workType]}
+                    </span>
+                    <Link
+                      href={`/bonsai/${bonsai.id}/maintenance/${record.id}/edit`}
+                      className="text-xs font-medium text-blue-600 hover:underline"
+                    >
+                      編集
+                    </Link>
+                  </div>
                 </div>
                 {record.workerName && (
                   <p className="mt-1 text-xs text-gray-500">

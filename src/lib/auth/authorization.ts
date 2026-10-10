@@ -9,3 +9,9 @@ import type { UserRole } from "@prisma/client";
 export function canDeleteBonsai(role: UserRole): boolean {
   return role === "ADMIN";
 }
+
+// 操作ログ(誰がいつ何を変更したか)の閲覧は管理者のみ。
+// 一般ユーザーも手入れ履歴を編集できる代わりに、変更の追跡は管理者が行う想定。
+export function canViewAuditLog(role: UserRole): boolean {
+  return role === "ADMIN";
+}

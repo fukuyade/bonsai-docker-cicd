@@ -6,6 +6,6 @@ export const MAINTENANCE_WORK_TYPE_LABEL: Record<MaintenanceWorkType, string> = 
   PRUNING: "剪定",
   REPOTTING: "植え替え",
   FERTILIZING: "施肥",
-  PEST_CONTROL: "病害虫防除",
+  PEST_CONTROL: "消毒",
   OTHER: "その他",
 };

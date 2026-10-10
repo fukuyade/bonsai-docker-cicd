@@ -36,6 +36,7 @@ async function main() {
   await prisma.maintenanceRecord.deleteMany();
   await prisma.bonsaiImage.deleteMany();
   await prisma.bonsai.deleteMany();
+  await prisma.auditLog.deleteMany();
   await prisma.user.deleteMany();
 
   // deleteManyだけではAUTO_INCREMENTのカウンタはリセットされないため、
@@ -46,6 +47,7 @@ async function main() {
   );
   await prisma.$executeRawUnsafe("ALTER TABLE bonsai_image AUTO_INCREMENT = 1");
   await prisma.$executeRawUnsafe("ALTER TABLE bonsai AUTO_INCREMENT = 1");
+  await prisma.$executeRawUnsafe("ALTER TABLE audit_log AUTO_INCREMENT = 1");
   await prisma.$executeRawUnsafe("ALTER TABLE user AUTO_INCREMENT = 1");
 
   // ログイン用デモアカウント(管理者1名・一般ユーザー1名)。
@@ -90,7 +92,7 @@ async function main() {
       location: "展示場B",
       acquiredAt: new Date("2021-11-03"),
       nextMaintenanceDate: null,
-      memo: "病害虫防除中。",
+      memo: "消毒中。",
     },
     {
       managementNumber: "No.004",

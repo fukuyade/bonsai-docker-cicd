@@ -51,6 +51,8 @@ Day単位で記録しています。
 | `/bonsai/[id]/edit` | 盆栽の編集 |
 | `/bonsai/[id]/delete` | 盆栽の削除確認(管理者のみ) |
 | `/bonsai/[id]/maintenance/new` | 手入れ履歴の登録 |
+| `/bonsai/[id]/maintenance/[recordId]/edit` | 手入れ履歴の編集(変更内容は操作ログに記録) |
+| `/admin/audit-logs` | 操作ログ(誰が・いつ・何を変更したか。管理者のみ) |
 
 検索条件はURLのクエリパラメータに保持されます（例: `/bonsai?keyword=松&status=HEALTHY`）。
 検索フォームは素のHTMLの`method="get"`なので、JavaScriptが無効でも動作し、
@@ -90,6 +92,7 @@ Docker Composeで起動すると、上記の画面をすべて実際に操作し
 - [x] 初期ダミーデータ投入(seed)
 - [x] 単体テスト(Vitest)とCI(GitHub Actions)
 - [x] ログイン認証・権限管理(管理者/一般ユーザーの2層、削除は管理者のみ)
+- [x] 手入れ履歴の編集と操作ログ(誰が・いつ・何を変更したかを記録、ログ閲覧は管理者のみ)
 
 画像アップロード(S3等)・E2Eテスト・本番用インフラ強化は今回のMVP範囲外です。詳細は下記の「今後の改善案」を参照してください。
 
@@ -100,6 +103,10 @@ src/
   proxy.ts          # ログイン必須ルートの簡易チェック(未ログイン→/loginへリダイレクト)
                     # Next.js 16でmiddleware.tsから名称変更されたファイル規約
   app/
+    _components/AppHeader.tsx  # ログイン後の共通ヘッダー(/bonsai・/adminで共用)
+    admin/
+      layout.tsx
+      audit-logs/page.tsx   # 操作ログの閲覧(管理者のみ)
     login/
       page.tsx           # ログイン画面
       actions.ts          # loginAction・logoutAction("use server")
@@ -115,9 +122,10 @@ src/
       [id]/not-found.tsx      # 存在しないIDの404表示
       [id]/_components/BonsaiImageGallery.tsx  # 4方向写真ギャラリー
       [id]/maintenance/
-        actions.ts              # 手入れ履歴登録のServer Action
+        actions.ts              # 手入れ履歴の登録・更新のServer Action(操作ログも記録)
         form-state.ts
         new/page.tsx            # 手入れ履歴の登録
+        [recordId]/edit/page.tsx # 手入れ履歴の編集
         _components/MaintenanceForm.tsx
       error.tsx                # 想定外の例外(DB接続断など)用のエラーバウンダリ
       actions.ts             # Server Actions(盆栽の登録・更新)。"use server"
@@ -139,7 +147,9 @@ src/
     bonsai.ts         # 盆栽のDBアクセス関数(一覧・詳細取得・作成・更新)
     bonsai-status.ts   # ステータスの日本語ラベル・色の対応表
     bonsai-image-angle.ts # 写真の向きの日本語ラベル
-    maintenance.ts      # 手入れ履歴の作成関数
+    maintenance.ts      # 手入れ履歴の取得・作成・更新(操作ログと同じトランザクションで記録)
+    maintenance-diff.ts  # 変更前後の差分を求める純粋関数
+    audit.ts / audit-format.ts  # 操作ログの取得・表示用の整形
     maintenance-work-type.ts # 作業種別の日本語ラベル
     format.ts          # 日付表示などの共通フォーマッタ
     bonsai-search.ts    # 検索条件からwhere句を組み立てる純粋関数
@@ -203,11 +213,22 @@ erDiagram
         string name
         enum role "ADMIN/STAFF"
     }
+    AuditLog {
+        int id PK
+        int userId FK "NULL可(利用者削除後もログは残す)"
+        string userName "操作時点の名前のスナップショット"
+        enum action "CREATE/UPDATE/DELETE"
+        string entity "例: MaintenanceRecord"
+        int entityId
+        json detail "変更前後の値"
+    }
+    User ||--o{ AuditLog : "操作した人"
 ```
 
 盆栽1件に対して、手入れ履歴と写真をそれぞれ複数件持つ1対多構成です。
-`User`は他のテーブルと直接のリレーションを持たず(誰が何を変更したかの記録は今回のスコープ外)、
-ログイン・権限判定のみに使っています。
+`User`はログイン・権限判定に使い、`AuditLog`(操作ログ)で「誰が・いつ・何を変更したか」を記録します。
+操作ログは、利用者が削除されても残したいので`onDelete: SetNull`にし、操作時点の名前も`userName`に
+スナップショットで持たせています。
 
 **削除時の挙動を関連ごとに変えています（設計判断）**
 
@@ -305,7 +326,9 @@ npm run test:watch  # 変更を監視して自動実行
 | `src/lib/validation/bonsai.test.ts` | Zod入力検証の正常系・異常系・境界値（50文字ちょうど/51文字など）、フォーム値→DB入力への変換 |
 | `src/lib/bonsai-search.test.ts` | 検索条件からwhere句を組み立てるロジック、不正なstatusを無視する挙動 |
 | `src/lib/auth/password.test.ts` | パスワードのハッシュ化・検証（正しい/間違ったパスワード、ソルトによりハッシュが毎回変わること） |
-| `src/lib/auth/authorization.test.ts` | 権限判定（ADMINは削除可・STAFFは削除不可） |
+| `src/lib/auth/authorization.test.ts` | 権限判定（ADMINは削除可・STAFFは削除不可、操作ログの閲覧はADMINのみ） |
+| `src/lib/maintenance-diff.test.ts` | 手入れ履歴の変更前後の差分検出（変更なし・複数項目・nullとの変更・日付の比較） |
+| `src/lib/audit-format.test.ts` | 操作ログの表示整形（作業種別を日本語ラベルで表示、壊れたデータでも落ちない） |
 
 💡 **テストしやすさを意識した設計**: 検索条件の組み立て（`buildBonsaiWhere`）は、
 あえてDB処理から切り離した純粋関数にしています。DBを立てずに、入力に対して
@@ -362,6 +385,11 @@ npm run test:watch  # 変更を監視して自動実行
   アクセスする直前(Server Action・DAL)では必ず`verifySession()`/`canDeleteBonsai()`を
   呼び直しており、devtoolsで直接フォームを送信されても権限のない削除が通らないことを確認済み。
   UI側(削除リンクの非表示)はあくまでUX目的で、権限の実効性はサーバー側だけに持たせている。
+- **履歴を編集可能にする代わりに、操作ログで安全性を補った**: 手入れ履歴は業務記録なので、
+  編集を許す以上「誰がいつ何をどう変えたか」を追えるようにした。履歴の更新と操作ログの書き込みは
+  **同じトランザクション**にまとめ、「更新できたのにログが残らない」状態を作らない。
+  変更前の値の取得・差分計算・更新・ログ記録も同一トランザクション内で行い、ログの「変更前」が
+  実際の更新時点の値とずれないようにしている。内容が変わっていない更新はログを残さない。
 - **パスワードは平文比較しない設計を徹底**: ログイン失敗時、「メールアドレスが存在しない」と
   「パスワードが違う」を同じメッセージ・同じ処理経路にし、登録済みメールアドレスの有無を
   外部から推測されにくくしている(ユーザー列挙攻撃対策)。
@@ -391,7 +419,8 @@ MVP範囲外として今回は見送った項目です。理由も含めて記�
   結合テストは、実行時間とメンテナンスコストを見ながら段階的に追加したい
 - **画像アップロード(S3等)**: 盆栽の写真管理は元の実務要件にはあったが、公開ポートフォリオの
   MVPとしては対象外とした
-- **手入れ履歴の編集・削除**: 現在は登録のみ。誤入力の訂正手段は今後追加したい
+- **手入れ履歴の削除**: 編集は可能になったが削除は未対応。盆栽の編集・登録・削除の操作ログも未記録
+  (現在ログを取っているのは手入れ履歴の登録・更新のみ。同じ仕組みで広げられる)
 - **認証の追加強化**: ログイン失敗回数の制限(ブルートフォース対策)、パスワード再設定機能、
   操作ログ(誰がいつ何を変更したか)の記録は未実装。現在は管理者/一般ユーザーの2層のみ
 

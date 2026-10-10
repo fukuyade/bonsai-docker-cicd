@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { canDeleteBonsai } from "./authorization";
+import { canDeleteBonsai, canViewAuditLog } from "./authorization";
 
 describe("canDeleteBonsai", () => {
   it("ADMINは削除できる", () => {
@@ -9,5 +9,15 @@ describe("canDeleteBonsai", () => {
 
   it("STAFFは削除できない", () => {
     expect(canDeleteBonsai("STAFF")).toBe(false);
+  });
+});
+
+describe("canViewAuditLog", () => {
+  it("ADMINは操作ログを閲覧できる", () => {
+    expect(canViewAuditLog("ADMIN")).toBe(true);
+  });
+
+  it("STAFFは操作ログを閲覧できない", () => {
+    expect(canViewAuditLog("STAFF")).toBe(false);
   });
 });

@@ -15,12 +15,9 @@ export const maintenanceFormSchema = z.object({
 
 export type MaintenanceFormValues = z.infer<typeof maintenanceFormSchema>;
 
-export function toMaintenanceCreateInput(
-  values: MaintenanceFormValues,
-  bonsaiId: number,
-) {
+// フォームの値(文字列)を、DBへ渡す形(Date・null)へ変換する。作成・更新で共用。
+export function toMaintenanceInput(values: MaintenanceFormValues) {
   return {
-    bonsaiId,
     maintenanceDate: new Date(values.maintenanceDate),
     workType: values.workType,
     workerName: values.workerName || null,

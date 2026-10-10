@@ -34,7 +34,7 @@ enum MaintenanceWorkType {
   PRUNING // 剪定
   REPOTTING // 植え替え
   FERTILIZING // 施肥
-  PEST_CONTROL // 病害虫防除
+  PEST_CONTROL // 消毒(画面上の表示名。DB上の値はPEST_CONTROLのまま)
   OTHER // その他
 }
 
@@ -42,6 +42,13 @@ enum MaintenanceWorkType {
 enum UserRole {
   ADMIN // 全操作可能(削除を含む)
   STAFF // 閲覧・登録・編集のみ(削除は不可)
+}
+
+/// 操作ログの種別。
+enum AuditAction {
+  CREATE // 作成
+  UPDATE // 更新
+  DELETE // 削除
 }
 
 /// ログインする利用者(社内スタッフ)。
@@ -55,7 +62,33 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
+  auditLogs AuditLog[]
+
   @@map("user")
+}
+
+/// 操作ログ(誰が・いつ・何を変更したか)。
+/// 手入れ履歴を編集できるようにする代わりに、変更の追跡で安全性を補う。
+model AuditLog {
+  id       Int  @id @default(autoincrement())
+  /// 操作した利用者。利用者が削除されてもログは残したいのでNULLを許容する(SetNull)。
+  userId   Int?
+  /// 操作時点の利用者名のスナップショット。userIdがNULLになっても誰の操作か分かる。
+  userName String
+  action   AuditAction
+  /// 対象のエンティティ名(例: "MaintenanceRecord")
+  entity   String
+  entityId Int
+  /// 変更内容(JSON)。更新なら項目ごとの変更前・変更後、作成なら登録した値。
+  detail   Json?
+  createdAt DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  // 「このレコードの変更履歴」と「新しい順の一覧」を引くためのインデックス。
+  @@index([entity, entityId])
+  @@index([createdAt])
+  @@map("audit_log")
 }
 
 /// 盆栽本体。
