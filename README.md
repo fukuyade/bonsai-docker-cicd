@@ -34,6 +34,7 @@ Webアプリ化によって解消することを目的とした個人開発プ�
 | Tailwind CSS | 管理画面のUIを素早く一貫したスタイルで組むため |
 | Vitest | 設定が軽く、TypeScriptをそのまま実行できるため。DBを起動せず純粋関数を検証する用途に合う |
 | GitHub Actions | PRのたびにlint・test・buildを自動実行し、「自分の環境でだけ動く」状態を防ぐため |
+| jose + bcryptjs | ログインセッション(JWT署名・検証)とパスワードハッシュ化。Next.js公式ドキュメントが推奨する「認証ライブラリを使わない場合の標準パターン」に沿って自前実装した |
 
 技術選定の詳細な理由や、実装中に遭遇した問題・対応は [docs/issues.md](docs/issues.md) に
 Day単位で記録しています。
@@ -43,16 +44,27 @@ Day単位で記録しています。
 | パス | 内容 |
 |---|---|
 | `/` | トップ(盆栽一覧への導線) |
+| `/login` | ログイン(未ログイン状態では`/bonsai`配下の全ページがここへリダイレクトされる) |
 | `/bonsai` | 盆栽一覧 |
 | `/bonsai/new` | 盆栽の新規登録 |
 | `/bonsai/[id]` | 盆栽詳細(手入れ履歴一覧を含む) |
 | `/bonsai/[id]/edit` | 盆栽の編集 |
-| `/bonsai/[id]/delete` | 盆栽の削除確認 |
+| `/bonsai/[id]/delete` | 盆栽の削除確認(管理者のみ) |
 | `/bonsai/[id]/maintenance/new` | 手入れ履歴の登録 |
 
 検索条件はURLのクエリパラメータに保持されます（例: `/bonsai?keyword=松&status=HEALTHY`）。
 検索フォームは素のHTMLの`method="get"`なので、JavaScriptが無効でも動作し、
 検索結果のURLをそのまま共有・ブックマークできます。
+
+## デモアカウント
+
+`docker compose exec app npm run db:seed`(公開デモでは初回のみ実行済み)で、以下の
+2アカウントが作成されます。実在の担当者情報ではなく、検証用のダミーアカウントです。
+
+| メールアドレス | パスワード | 権限 |
+|---|---|---|
+| admin@example.com | AdminPass123! | 管理者(ADMIN、削除操作を含む全操作が可能) |
+| staff@example.com | StaffPass123! | 一般ユーザー(STAFF、閲覧・登録・編集のみ。削除不可) |
 
 ## 画面画像
 
@@ -72,15 +84,24 @@ Docker Composeで起動すると、上記の画面をすべて実際に操作し
 - [x] Prisma接続
 - [x] 初期ダミーデータ投入(seed)
 - [x] 単体テスト(Vitest)とCI(GitHub Actions)
+- [x] ログイン認証・権限管理(管理者/一般ユーザーの2層、削除は管理者のみ)
 
-P1(削除・検索・テスト・CI等)・P2(認証・画像アップロード・デプロイ等)は今回のMVP範囲外です。詳細は下記の「今後の改善案」を参照してください。
+画像アップロード(S3等)・E2Eテスト・本番用インフラ強化は今回のMVP範囲外です。詳細は下記の「今後の改善案」を参照してください。
 
 ## ディレクトリ構成
 
 ```
 src/
+  proxy.ts          # ログイン必須ルートの簡易チェック(未ログイン→/loginへリダイレクト)
+                    # Next.js 16でmiddleware.tsから名称変更されたファイル規約
   app/
+    login/
+      page.tsx           # ログイン画面
+      actions.ts          # loginAction・logoutAction("use server")
+      form-state.ts
+      _components/LoginForm.tsx
     bonsai/
+      layout.tsx           # ログイン必須化 + ヘッダー(ユーザー名・ロール・ログアウト)
       (list)/page.tsx       # 盆栽一覧（ルートグループなのでURLは /bonsai）
       (list)/loading.tsx     # 一覧の読み込み中スケルトン
       new/page.tsx          # 盆栽の新規登録
@@ -101,6 +122,13 @@ src/
         BonsaiForm.tsx          # 登録・編集共用のフォーム(useActionState)
         StatusBadge.tsx
   lib/
+    auth/
+      password.ts       # bcryptjsによるパスワードのハッシュ化・検証
+      session.ts         # joseによるJWTセッションの発行・検証(cookie管理)
+      dal.ts              # Data Access Layer。verifySession/getCurrentUser
+      authorization.ts     # 権限判定(canDeleteBonsai等)の純粋関数
+      authorization.test.ts
+      password.test.ts
     prisma.ts        # PrismaClientのシングルトン(driver adapter設定含む)
     bonsai.ts         # 盆栽のDBアクセス関数(一覧・詳細取得・作成・更新)
     bonsai-status.ts   # ステータスの日本語ラベル・色の対応表
@@ -111,6 +139,7 @@ src/
     bonsai-search.ts    # 検索条件からwhere句を組み立てる純粋関数
     bonsai-search.test.ts  # 上記のテスト
     validation/
+      auth.ts            # ログインフォームのZodスキーマ
       bonsai.ts          # 登録・編集フォームのZodスキーマ
       bonsai.test.ts      # 上記のテスト(正常系・異常系・境界値)
       maintenance.ts      # 手入れ履歴フォームのZodスキーマ
@@ -161,9 +190,18 @@ erDiagram
         string altText
         int sortOrder
     }
+    User {
+        int id PK
+        string email UK
+        string passwordHash
+        string name
+        enum role "ADMIN/STAFF"
+    }
 ```
 
 盆栽1件に対して、手入れ履歴と写真をそれぞれ複数件持つ1対多構成です。
+`User`は他のテーブルと直接のリレーションを持たず(誰が何を変更したかの記録は今回のスコープ外)、
+ログイン・権限判定のみに使っています。
 
 **削除時の挙動を関連ごとに変えています（設計判断）**
 
@@ -182,7 +220,10 @@ erDiagram
 `app`(Next.js)・`db`(MySQL 8)の2サービスをDocker Composeで起動します。
 
 ```bash
-cp .env.example .env   # 値はダミーのままでもローカル動作可
+cp .env.example .env
+# SESSION_SECRETはダミー値のままだとログインセッションの署名鍵として弱いため、
+# 各自生成した値に置き換えることを推奨(他の値はダミーのままでもローカル動作可)。
+openssl rand -base64 32   # 出力された値を.envのSESSION_SECRETへ貼り付ける
 docker compose up --build
 ```
 
@@ -217,6 +258,9 @@ Docker Composeが作る内部ネットワークでは、サービス名がその
 docker compose exec app npx prisma migrate dev --name init   # 初回のみ(以後は npm run db:migrate)
 docker compose exec app npm run db:seed                      # ダミーデータ投入(何度実行してもリセットされる)
 ```
+
+`db:seed`は盆栽の他に、ログイン用のデモアカウント2件(管理者・一般ユーザー)も作成します。
+詳細は「[デモアカウント](#デモアカウント)」を参照してください。
 
 空の状態(volumeなし)から `docker compose up -d --build` → 上記2コマンドで、
 毎回同じ状態を再現できることを確認済みです。
@@ -254,6 +298,8 @@ npm run test:watch  # 変更を監視して自動実行
 |---|---|
 | `src/lib/validation/bonsai.test.ts` | Zod入力検証の正常系・異常系・境界値（50文字ちょうど/51文字など）、フォーム値→DB入力への変換 |
 | `src/lib/bonsai-search.test.ts` | 検索条件からwhere句を組み立てるロジック、不正なstatusを無視する挙動 |
+| `src/lib/auth/password.test.ts` | パスワードのハッシュ化・検証（正しい/間違ったパスワード、ソルトによりハッシュが毎回変わること） |
+| `src/lib/auth/authorization.test.ts` | 権限判定（ADMINは削除可・STAFFは削除不可） |
 
 💡 **テストしやすさを意識した設計**: 検索条件の組み立て（`buildBonsaiWhere`）は、
 あえてDB処理から切り離した純粋関数にしています。DBを立てずに、入力に対して
@@ -305,6 +351,14 @@ npm run test:watch  # 変更を監視して自動実行
   バックアップや転送が重くなるため、ファイルは`public/`に置きパスだけをDBで管理している。
   また元画像(1254px PNG・計42MB)はポートフォリオのリポジトリとしては重すぎるため、
   800px・JPEG(品質82)へ変換して計2MB(約95%削減)に抑えた。
+- **認証を「簡易チェック」と「最終防衛線」の2段構えにした**: `src/proxy.ts`は
+  cookieの中身を見るだけの軽量なチェック(未ログインなら`/login`へ)。実際にDBへ
+  アクセスする直前(Server Action・DAL)では必ず`verifySession()`/`canDeleteBonsai()`を
+  呼び直しており、devtoolsで直接フォームを送信されても権限のない削除が通らないことを確認済み。
+  UI側(削除リンクの非表示)はあくまでUX目的で、権限の実効性はサーバー側だけに持たせている。
+- **パスワードは平文比較しない設計を徹底**: ログイン失敗時、「メールアドレスが存在しない」と
+  「パスワードが違う」を同じメッセージ・同じ処理経路にし、登録済みメールアドレスの有無を
+  外部から推測されにくくしている(ユーザー列挙攻撃対策)。
 
 ## 苦労した点と解決方法
 
@@ -321,6 +375,7 @@ npm run test:watch  # 変更を監視して自動実行
 | フォームがエラーで差し戻されると、他の入力項目まで空に戻ってしまった | Server Actionの戻り値に送信済みの値を含め、`<form key={...}>`で再マウントさせて反映 |
 | 404の画面は出るのにHTTPステータスが200のままだった | `loading.tsx`があるとストリーミングでヘッダーが先に送出され、あとから`notFound()`で404にできないことが原因。ルートグループ`(list)`で一覧だけを囲み、詳細ページをストリーミング対象から外して解決 |
 | Vitest 5 が `@types/node` のバージョン衝突でインストールできなかった | `--legacy-peer-deps`で回避せず、実行環境（Node 24）に型定義を合わせて`@types/node@^24`へ更新 |
+| Next.js 16では`middleware.ts`が廃止され`proxy.ts`(関数名も`proxy`)に変更されていた | 学習時の知識のまま`middleware.ts`を作っても認識されないため、公式ドキュメント(`node_modules/next/dist/docs`)で新しいファイル規約を確認してから実装した |
 
 ## 今後の改善案
 
@@ -328,11 +383,11 @@ MVP範囲外として今回は見送った項目です。理由も含めて記�
 
 - **E2Eテスト（Playwright等）**: 現在は純粋関数の単体テストのみ。画面操作を通した
   結合テストは、実行時間とメンテナンスコストを見ながら段階的に追加したい
-- **認証・権限管理**: 今回は社内向け想定のシンプルな構成のため未実装。実運用ではユーザーごとの
-  権限管理が必要
 - **画像アップロード(S3等)**: 盆栽の写真管理は元の実務要件にはあったが、公開ポートフォリオの
   MVPとしては対象外とした
 - **手入れ履歴の編集・削除**: 現在は登録のみ。誤入力の訂正手段は今後追加したい
+- **認証の追加強化**: ログイン失敗回数の制限(ブルートフォース対策)、パスワード再設定機能、
+  操作ログ(誰がいつ何を変更したか)の記録は未実装。現在は管理者/一般ユーザーの2層のみ
 
 ## AIを使った範囲
 

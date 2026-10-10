@@ -38,6 +38,26 @@ enum MaintenanceWorkType {
   OTHER // その他
 }
 
+/// 利用者の権限。管理者/一般ユーザーの2層。
+enum UserRole {
+  ADMIN // 全操作可能(削除を含む)
+  STAFF // 閲覧・登録・編集のみ(削除は不可)
+}
+
+/// ログインする利用者(社内スタッフ)。
+model User {
+  id           Int      @id @default(autoincrement())
+  email        String   @unique
+  /// bcryptでハッシュ化したパスワード。平文は一切保存しない。
+  passwordHash String
+  name         String
+  role         UserRole @default(STAFF)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@map("user")
+}
+
 /// 盆栽本体。
 model Bonsai {
   id                   Int          @id @default(autoincrement())

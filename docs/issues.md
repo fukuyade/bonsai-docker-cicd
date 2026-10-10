@@ -402,3 +402,97 @@ HTTPヘッダー(200 OK)とスケルトンを送り始める。**ヘッダー送
   この環境では保存先パスを返さないため、README用の画像として埋め込めなかった。
   README には画面一覧(パス表)と、Docker Composeで実際に操作して確認できる旨を明記している。
 - **リリースタグ `v1.0.0`**: 付与するかはユーザー判断のため保留。
+
+## A5｜公開デモ環境の構築 Vercel + TiDB Cloud(完了)
+
+ブランチ: `chore/vercel-deploy-prep`、`fix/prisma-config-optional-shadow-db`、`docs/add-live-demo-link`
+
+- [x] TiDB Cloud Serverless(MySQL互換、無料枠)にDBを用意
+- [x] `package.json`のbuildスクリプトに`prisma generate`を追加(Dockerでは明示RUNで対応していたが、Vercelにも必要)
+- [x] `src/lib/prisma.ts`: 接続先ホスト名がDocker/localhost以外ならTLSを自動で有効化
+- [x] TiDB Cloudへ`prisma migrate deploy`・`db:seed`を実行
+- [x] READMEに公開URLを追記
+
+完成条件: https://bonsai-docker-cicd.vercel.app/bonsai がVercel上で200を返し、
+盆栽5件が表示される ✅
+
+### 設計判断
+
+- **AWS RDSではなくTiDB Cloud Serverlessを選定**: AWS RDSの無料枠は12ヶ月の期限付きでその後課金が発生し、
+  VPC・セキュリティグループ等の設定も複雑。TiDB Cloud ServerlessはMySQL互換で期限のない無料枠があり、
+  面接期間中ずっと公開しておく用途に適していたため選択した。
+- **ローカルと本番でTLSの要否をコードから自動判定**: 接続先ホスト名が`db`/`localhost`以外なら
+  自動でTLSを有効化するようにし(`src/lib/prisma.ts`)、本番用に追加の環境変数を増やさずに済むようにした。
+
+### 遭遇した問題と対応
+
+- **Vercelのビルドで`prisma generate`が実行されない**: npmの新しいinstall-scripts制限(A1で見た問題と同種)
+  により、`@prisma/client`が生成されずビルド失敗。`build`スクリプトに明示的に含めて解決。
+- **`PrismaConfigEnvError: Cannot resolve environment variable: SHADOW_DATABASE_URL`**: `prisma.config.ts`が
+  常に`env("SHADOW_DATABASE_URL")`を評価していたため、この変数を設定していないVercel上のビルドで例外が
+  発生。ローカルでは`.env`に設定済みで気づかなかった。`SHADOW_DATABASE_URL`は`migrate dev`(ローカル開発)
+  専用で本番の`prisma generate`には不要なため、環境変数が実際に存在する時だけ渡すよう修正。
+- **`prisma migrate deploy`が「Connections using insecure transport are prohibited」で失敗**: 接続URLに
+  `?sslaccept=strict`を付けて解決。CLI(schema engine)とアプリ本体(driver adapter)でTLSの扱いが
+  別コードパスであることを実機で確認した。
+
+## B1｜認証・権限管理(完了)
+
+ブランチ: `feature/auth`
+
+実務レベルへの引き上げフェーズ(B1〜)の最初の項目。社内向け管理アプリなのにログインが
+無かった、という一番大きな欠陥への対応。
+
+- [x] `User`モデル追加(email/passwordHash/role)、マイグレーション作成
+- [x] パスワードのハッシュ化・検証(bcryptjs)
+- [x] ログインセッション(JWT、jose)。httpOnly cookie、7日で失効
+- [x] `src/proxy.ts`でログイン必須化(未ログイン→`/login`へリダイレクト)
+- [x] Data Access Layer(`src/lib/auth/dal.ts`)で最終防衛線のセッション検証
+- [x] 管理者/一般ユーザーの2層のロール、削除は管理者のみ(`canDeleteBonsai`)
+- [x] デモアカウント2件(admin/staff)をseedへ追加
+- [x] 単体テスト追加(パスワードのハッシュ化・検証、権限判定)
+- [x] README・ER図・デモアカウント情報を追記
+
+完成条件: 未ログインで`/bonsai`配下にアクセスすると`/login`へリダイレクトされる ✅ /
+admin・staff両アカウントでログインでき、staffには削除リンクが表示されない ✅ /
+staffが`/bonsai/[id]/delete`をURL直打ちしても詳細ページへ戻される ✅ /
+lint・test(31件)・build成功 ✅ (すべてDocker内で確認)
+
+### 設計判断
+
+- **NextAuth等のライブラリを使わず自前実装**: Next.js 16は訓練データより新しく、サードパーティ
+  認証ライブラリの対応状況が不透明だったため、公式ドキュメント(`node_modules/next/dist/docs`)が
+  提示する「認証ライブラリを使わない場合の標準パターン」(jose + bcryptjs + cookies API)に
+  そのまま従った。依存を増やさず、全行を自分の言葉で説明できる状態を優先した。
+- **ステートレスセッション(JWT)を採用**: セッションをDBに保存する方式(database session)は
+  より安全だが実装コストが高い。今回はJWTを署名してcookieに入れるステートレス方式にした。
+  ペイロードには`userId`と`role`のみを含め、個人情報は含めない。
+- **「簡易チェック」と「最終防衛線」の二重構造**: `proxy.ts`はcookieを見るだけの軽量チェック
+  (optimistic check、全リクエストで実行されるためDBアクセスを避ける)。実際の認可判断は
+  各Server Action・ページから呼ぶ`verifySession()`(secure check、DBアクセスを伴う)で行う。
+  役割を分けている理由をNext.js公式ドキュメントの用語(optimistic/secure)で説明できるようにした。
+- **削除リンクの非表示とServer Action側の権限チェックを両方実装**: UI側の非表示はUX目的にすぎず、
+  devtoolsで直接フォームを送信されれば通り抜けてしまう。`deleteBonsaiAction`側でも必ず
+  `canDeleteBonsai()`を呼び、権限がなければ処理自体を止める。
+- **ログイン失敗メッセージを統一**: 「メールアドレスが存在しない」と「パスワードが違う」を
+  区別せず同じメッセージ・同じ処理経路にし、登録済みメールアドレスの有無を外部から
+  推測されにくくした(ユーザー列挙攻撃対策)。
+
+### 遭遇した問題と対応
+
+- **`middleware.ts`が認識されない**: Next.js 16では`middleware.ts`が廃止され、`proxy.ts`
+  (関数名も`proxy`)に名称変更されていた。学習時の知識のまま実装しても動かないため、公式
+  ドキュメントで新しいファイル規約を確認してから実装した。
+- **ローカルの`.env`で`SHADOW_DATABASE_URL`が誤って`mysql`(MySQLのシステムデータベース)を
+  指していた**: `migrate dev`はshadow database用に一時的にテーブルを作成・削除するため、この
+  ままではMySQLサーバー自体の内部管理テーブルを壊しかねない状態だった。マイグレーション実行前に
+  `.env.example`通りの`prisma_shadow`へ修正して回避した。原因は不明(過去のいずれかの作業で
+  誤って書き換わったと思われる)が、**「ダミー値だから」と値の中身を確認せずに使わない**ことの
+  重要性を再認識した。
+- **`Cannot find module 'bcryptjs'`(seed実行時)**: ホスト側で`npm install`した後、
+  `docker compose up -d --build`だけでは既存の匿名volume(`node_modules`)が残り、新しい依存が
+  コンテナ内に反映されなかった。Day3・A2で既知だった問題と同種。`docker compose down`後に
+  `up -d --build`し、volumeごと作り直して解決した。
+- **curlでServer Actionsを直接叩けない**: Server Actionsは暗号化されたアクションIDを含む
+  RSC専用プロトコル(`multipart/form-data`、`$ACTION_REF_1`等の隠しフィールド)で送信される。
+  単純な`curl -X POST`では模擬できないため、実際のログイン確認はブラウザ操作で行った。

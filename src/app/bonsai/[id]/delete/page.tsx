@@ -1,6 +1,8 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 
+import { canDeleteBonsai } from "@/lib/auth/authorization";
+import { getCurrentUser } from "@/lib/auth/dal";
 import { getBonsaiWithMaintenanceRecords } from "@/lib/bonsai";
 
 import { deleteBonsaiAction } from "../../actions";
@@ -19,6 +21,15 @@ export default async function DeleteBonsaiPage({
 
   if (!Number.isInteger(bonsaiId)) {
     notFound();
+  }
+
+  // 削除確認画面もSTAFFには見せない(URL直打ちを防ぐ)。
+  // 最終防衛線はdeleteBonsaiAction側だが、確認画面まで見えてしまうと
+  // 「押せるのに権限エラーになる」という分かりにくい体験になるため、
+  // ここでも早めに弾いて詳細ページへ戻す。
+  const currentUser = await getCurrentUser();
+  if (!currentUser || !canDeleteBonsai(currentUser.role)) {
+    redirect(`/bonsai/${bonsaiId}`);
   }
 
   const bonsai = await getBonsaiWithMaintenanceRecords(bonsaiId);

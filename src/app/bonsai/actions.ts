@@ -4,6 +4,8 @@ import { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
+import { canDeleteBonsai } from "@/lib/auth/authorization";
+import { verifySession } from "@/lib/auth/dal";
 import { createBonsai, deleteBonsai, updateBonsai } from "@/lib/bonsai";
 import {
   bonsaiFormSchema,
@@ -169,6 +171,14 @@ export async function deleteBonsaiAction(
   id: number,
   _prevState: BonsaiDeleteState,
 ): Promise<BonsaiDeleteState> {
+  // 削除は管理者のみ。画面側でも削除リンクを非表示にしているが(UX目的)、
+  // devtoolsで直接フォームを送信される可能性があるため、Server Action側でも
+  // 必ず検証する(これがないとSTAFFでもURLとcurlさえ分かれば削除できてしまう)。
+  const session = await verifySession();
+  if (!canDeleteBonsai(session.role)) {
+    return { message: "この操作を行う権限がありません。" };
+  }
+
   try {
     await deleteBonsai(id);
   } catch (error) {

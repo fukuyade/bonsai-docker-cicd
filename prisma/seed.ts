@@ -2,9 +2,28 @@ import {
   BonsaiImageAngle,
   BonsaiStatus,
   MaintenanceWorkType,
+  UserRole,
 } from "@prisma/client";
 
+import { hashPassword } from "../src/lib/auth/password";
 import { prisma } from "../src/lib/prisma";
+
+// デモ用のログインアカウント。実在の担当者情報ではない。
+// パスワードはREADMEにも同じ内容を記載している(公開デモ用のため)。
+const DEMO_USERS = [
+  {
+    email: "admin@example.com",
+    password: "AdminPass123!",
+    name: "管理者デモ",
+    role: UserRole.ADMIN,
+  },
+  {
+    email: "staff@example.com",
+    password: "StaffPass123!",
+    name: "一般ユーザーデモ",
+    role: UserRole.STAFF,
+  },
+] as const;
 
 // 写真は生成AIで作成した架空の画像。実在の盆栽を撮影したものではない。
 // 1鉢につき正面・右・左・背面の4方向を用意している。
@@ -31,6 +50,7 @@ async function main() {
   await prisma.maintenanceRecord.deleteMany();
   await prisma.bonsaiImage.deleteMany();
   await prisma.bonsai.deleteMany();
+  await prisma.user.deleteMany();
 
   // deleteManyだけではAUTO_INCREMENTのカウンタはリセットされないため、
   // 複数回実行するとid が 6, 7, 8... と増え続けてしまう。
@@ -40,6 +60,20 @@ async function main() {
   );
   await prisma.$executeRawUnsafe("ALTER TABLE bonsai_image AUTO_INCREMENT = 1");
   await prisma.$executeRawUnsafe("ALTER TABLE bonsai AUTO_INCREMENT = 1");
+  await prisma.$executeRawUnsafe("ALTER TABLE user AUTO_INCREMENT = 1");
+
+  // ログイン用デモアカウント(管理者1名・一般ユーザー1名)。
+  // パスワードは平文のまま保存せず、必ずハッシュ化してから保存する。
+  for (const demoUser of DEMO_USERS) {
+    await prisma.user.create({
+      data: {
+        email: demoUser.email,
+        passwordHash: await hashPassword(demoUser.password),
+        name: demoUser.name,
+        role: demoUser.role,
+      },
+    });
+  }
 
   const bonsaiList = [
     {
@@ -153,7 +187,7 @@ async function main() {
   console.log(
     `シード投入完了: Bonsai ${bonsaiList.length}件, ` +
       `BonsaiImage ${bonsaiList.length * IMAGE_ANGLES.length}件, ` +
-      `MaintenanceRecord 3件`,
+      `MaintenanceRecord 3件, User ${DEMO_USERS.length}件`,
   );
 }
 

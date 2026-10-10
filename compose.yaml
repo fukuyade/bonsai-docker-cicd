@@ -10,6 +10,8 @@ services:
       # `docker compose exec app npx prisma migrate dev` を実行する時だけ使う
       # shadow database用の接続(rootを使う理由は .env.example のコメント参照)。
       SHADOW_DATABASE_URL: mysql://root:${MYSQL_ROOT_PASSWORD}@db:3306/prisma_shadow
+      # ログインセッション(JWT)の署名鍵。.env.exampleのコメント参照。
+      SESSION_SECRET: ${SESSION_SECRET}
     volumes:
       # ソースコードをbind mountし、変更を即座に反映(ホットリロード)できるようにする。
       - .:/app

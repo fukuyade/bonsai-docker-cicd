@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { canDeleteBonsai } from "@/lib/auth/authorization";
+import { getCurrentUser } from "@/lib/auth/dal";
 import { getBonsaiWithMaintenanceRecords } from "@/lib/bonsai";
 import { formatDate } from "@/lib/format";
 import { MAINTENANCE_WORK_TYPE_LABEL } from "@/lib/maintenance-work-type";
@@ -27,13 +29,20 @@ export default async function BonsaiDetailPage({
     notFound();
   }
 
-  const bonsai = await getBonsaiWithMaintenanceRecords(bonsaiId);
+  const [bonsai, currentUser] = await Promise.all([
+    getBonsaiWithMaintenanceRecords(bonsaiId),
+    getCurrentUser(),
+  ]);
 
   // 存在しないIDの場合、Next.jsのnotFound()を呼ぶと
   // 同じフォルダ(またはより上位)のnot-found.tsxが表示される(404相当)。
   if (!bonsai) {
     notFound();
   }
+
+  // 削除リンクの表示可否はUX目的の出し分けにすぎない。
+  // 実際の権限チェックはdeleteBonsaiAction側(Server Action)で必ず行っている。
+  const canDelete = currentUser ? canDeleteBonsai(currentUser.role) : false;
 
   return (
     <main className="mx-auto max-w-2xl px-6 py-10">
@@ -57,12 +66,14 @@ export default async function BonsaiDetailPage({
           >
             編集
           </Link>
-          <Link
-            href={`/bonsai/${bonsai.id}/delete`}
-            className="rounded-full border border-red-200 px-4 py-1.5 text-sm font-medium text-red-600 transition-colors hover:bg-red-50"
-          >
-            削除
-          </Link>
+          {canDelete && (
+            <Link
+              href={`/bonsai/${bonsai.id}/delete`}
+              className="rounded-full border border-red-200 px-4 py-1.5 text-sm font-medium text-red-600 transition-colors hover:bg-red-50"
+            >
+              削除
+            </Link>
+          )}
         </div>
       </div>
 
