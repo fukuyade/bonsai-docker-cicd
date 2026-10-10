@@ -12,6 +12,8 @@ services:
       SHADOW_DATABASE_URL: mysql://root:${MYSQL_ROOT_PASSWORD}@db:3306/prisma_shadow
       # ログインセッション(JWT)の署名鍵。.env.exampleのコメント参照。
       SESSION_SECRET: ${SESSION_SECRET}
+      # ログイン画面のデモアカウント表示(.env.exampleのコメント参照)。
+      SHOW_DEMO_ACCOUNTS: ${SHOW_DEMO_ACCOUNTS:-false}
     volumes:
       # ソースコードをbind mountし、変更を即座に反映(ホットリロード)できるようにする。
       - .:/app

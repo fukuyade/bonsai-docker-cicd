@@ -66,6 +66,11 @@ Day単位で記録しています。
 | admin@example.com | AdminPass123! | 管理者(ADMIN、削除操作を含む全操作が可能) |
 | staff@example.com | StaffPass123! | 一般ユーザー(STAFF、閲覧・登録・編集のみ。削除不可) |
 
+公開デモでは、ログイン画面にもこの2アカウントを案内表示しています。表示は環境変数
+`SHOW_DEMO_ACCOUNTS=true` のときだけ有効で、未設定・`false` なら表示されません
+(認証情報を画面に出すのはポートフォリオ公開用の例外的な見せ方であり、実運用相当の環境では
+OFFにする想定です)。値は `src/lib/auth/demo-accounts.ts` に集約し、seedとログイン画面で共用しています。
+
 ## 画面画像
 
 Docker Composeで起動すると、上記の画面をすべて実際に操作して確認できます
@@ -123,6 +128,7 @@ src/
         StatusBadge.tsx
   lib/
     auth/
+      demo-accounts.ts   # デモアカウント定義(seedとログイン画面の案内表示で共用)
       password.ts       # bcryptjsによるパスワードのハッシュ化・検証
       session.ts         # joseによるJWTセッションの発行・検証(cookie管理)
       dal.ts              # Data Access Layer。verifySession/getCurrentUser

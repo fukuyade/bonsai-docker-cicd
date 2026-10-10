@@ -2,28 +2,14 @@ import {
   BonsaiImageAngle,
   BonsaiStatus,
   MaintenanceWorkType,
-  UserRole,
 } from "@prisma/client";
 
+import { DEMO_ACCOUNTS as DEMO_USERS } from "../src/lib/auth/demo-accounts";
 import { hashPassword } from "../src/lib/auth/password";
 import { prisma } from "../src/lib/prisma";
 
-// デモ用のログインアカウント。実在の担当者情報ではない。
-// パスワードはREADMEにも同じ内容を記載している(公開デモ用のため)。
-const DEMO_USERS = [
-  {
-    email: "admin@example.com",
-    password: "AdminPass123!",
-    name: "管理者デモ",
-    role: UserRole.ADMIN,
-  },
-  {
-    email: "staff@example.com",
-    password: "StaffPass123!",
-    name: "一般ユーザーデモ",
-    role: UserRole.STAFF,
-  },
-] as const;
+// デモ用のログインアカウントの定義は src/lib/auth/demo-accounts.ts に集約している
+// (ログイン画面の案内表示と同じ値を使うため)。実在の担当者情報ではない。
 
 // 写真は生成AIで作成した架空の画像。実在の盆栽を撮影したものではない。
 // 1鉢につき正面・右・左・背面の4方向を用意している。
